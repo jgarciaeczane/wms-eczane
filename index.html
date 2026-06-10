@@ -430,10 +430,19 @@
     <div class="panel" id="panel-productos">
       <div class="card">
         <div class="card-header">Maestro de Productos<button class="btn btn-primary btn-sm" onclick="document.getElementById('modal-prod').classList.add('open')">+ Nuevo producto</button></div>
-        <div class="tbl-wrap">
+        <div style="padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border);">
+          <input id="prod-search" type="text" placeholder="Buscar por código o nombre..." style="flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:13px;" oninput="filterProductos()">
+          <span id="prod-count" style="font-size:12px;color:var(--gray);white-space:nowrap;"></span>
+        </div>
+        <div class="tbl-wrap" style="max-height:calc(100vh - 280px);overflow-y:auto;">
           <table><thead><tr><th>Código</th><th>Nombre</th><th>Categoría</th><th>Unidad</th><th>Acciones</th></tr></thead>
           <tbody id="prod-tbody"></tbody></table>
           <div id="prod-empty" class="empty-state">Sin productos. Agregá el primero.</div>
+        </div>
+        <div style="padding:10px 16px;display:flex;gap:8px;align-items:center;justify-content:center;border-top:1px solid var(--border);">
+          <button class="btn btn-sm" onclick="prodPrevPage()">← Anterior</button>
+          <span id="prod-page-info" style="font-size:12px;color:var(--gray);"></span>
+          <button class="btn btn-sm" onclick="prodNextPage()">Siguiente →</button>
         </div>
       </div>
     </div>
@@ -1047,12 +1056,21 @@ function renderMovimientos(){
   }).join('');
 }
 
+var _prodPage=0,_prodSize=50,_prodFilt=[];
+function filterProductos(){var q=(document.getElementById('prod-search').value||'').toLowerCase().trim();_prodFilt=q?state.productos.filter(function(p){return p.cod.toLowerCase().includes(q)||p.nom.toLowerCase().includes(q);}):state.productos.slice();_prodPage=0;renderProductos();}
+function prodPrevPage(){if(_prodPage>0){_prodPage--;renderProductos();}}
+function prodNextPage(){if(_prodPage<Math.ceil(_prodFilt.length/_prodSize)-1){_prodPage++;renderProductos();}}
 function renderProductos(){
   var tb=document.getElementById('prod-tbody'),em=document.getElementById('prod-empty');
-  if(!state.productos.length){tb.innerHTML='';em.style.display='block';return;}
+  var countEl=document.getElementById('prod-count'),pageEl=document.getElementById('prod-page-info');
+  if(!state.productos.length){tb.innerHTML='';em.style.display='block';if(countEl)countEl.textContent='';return;}
+  if(!_prodFilt.length)_prodFilt=state.productos.slice();
   em.style.display='none';
-  tb.innerHTML=state.productos.map(function(p){
-    return'<tr><td class="text-mono" style="font-weight:600;">'+p.cod+'</td><td style="font-weight:500;">'+p.nom+'</td><td>'+catBadge(p.cat)+'</td><td style="color:var(--text2);">'+p.unit+'</td><td><button class="btn btn-ghost btn-sm" onclick="eliminarProducto(\''+p.id+'\')">Eliminar</button></td></tr>';
+  var total=_prodFilt.length,start=_prodPage*_prodSize,end=Math.min(start+_prodSize,total);
+  if(countEl)countEl.textContent=total+' productos';
+  if(pageEl)pageEl.textContent='Pág '+(Math.floor(_prodPage)+1)+' / '+Math.ceil(total/_prodSize);
+  tb.innerHTML=_prodFilt.slice(start,end).map(function(p){
+    return'<tr><td class="text-mono" style="font-weight:600;">'+p.cod+'</td><td style="font-weight:500;">'+p.nom+'</td><td>'+catBadge(p.cat)+'</td><td style="color:var(--text2);">'+p.unit+'</td><td><button class="btn btn-ghost btn-sm" onclick="eliminarProducto(''+p.id+'')">Eliminar</button></td></tr>';
   }).join('');
 }
 
@@ -1133,6 +1151,7 @@ function poblarSelectores(){
 }
 
 function refreshAll(){
+  _prodFilt=state.productos.slice();_prodPage=0;
   renderDashboard();renderStock();renderMovimientos();renderProductos();renderMapa();renderVencimientos();poblarSelectores();
   if(API_URL)document.getElementById('cfg-url').value=API_URL;
 }
