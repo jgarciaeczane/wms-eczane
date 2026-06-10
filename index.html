@@ -647,6 +647,7 @@ function startCamera() {
       ];
       hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
       hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      hints.set(ZXing.DecodeHintType.ASSUME_CODE_39_CHECK_DIGIT, false);
       var codeReader = new ZXing.BrowserMultiFormatReader(hints);
       scanStream = codeReader;
       msg.textContent = 'Apuntá al código';
@@ -770,22 +771,44 @@ function applyLocation(code){
   showToast('Ubicación: '+code,'success');
 }
 
-function applyProduct(barcode){
-  // Clean Code39 asterisks: *MEM0101101A000000007848* -> MEM0101101A000000007848
-  var clean = barcode.replace(/\*/g, '').trim();
-  // Extract product code: first alphanumeric segment (e.g. MEM0101101)
-  var codeMatch = clean.match(/^([A-Z]{2,4}\d{5,})/i);
-  var extractedCode = codeMatch ? codeMatch[1] : clean;
+function parseEczaneBarcode(raw) {
+  // Clean asterisks from Code39
+  var clean = raw.replace(/\*/g, '').trim();
+  // Eczane format: CODPROD + LETRA + 000000 + NROLOTE
+  // Example: MEM0101101A000000007848
+  // Pattern: letters+digits (prod code) + single letter + 6 zeros + digits (lote)
+  var match = clean.match(/^([A-Z]+\d+)([A-Z])(0{4,})([0-9]+)$/i);
+  if (match) {
+    return {
+      full: clean,
+      prodCode: match[1],          // MEM0101101
+      letra: match[2],             // A
+      lote: match[2] + match[4],   // A7848 or just the number
+      nroAnalisis: match[4]        // 7848
+    };
+  }
+  // Fallback: just use the full string
+  return { full: clean, prodCode: clean, lote: clean, nroAnalisis: '' };
+}
 
+function applyProduct(barcode){
+  var parsed = parseEczaneBarcode(barcode);
   var loteField = document.getElementById('mov-lote');
-  loteField.value = clean;
+  // Use prod code + analysis number as lote identifier
+  loteField.value = parsed.nroAnalisis ? parsed.prodCode + '-' + parsed.nroAnalisis : parsed.full;
   loteField.classList.add('field-scanned');
 
-  // Try to find matching product by code
+  // Show what was parsed in the scanner result
+  var resEl = document.getElementById('scanner-result');
+  if(parsed.nroAnalisis) {
+    resEl.innerHTML = '✓ Código: <b>' + parsed.prodCode + '</b> · Análisis: <b>' + parsed.nroAnalisis + '</b>';
+  }
+
+  // Try to find matching product by extracted product code
   var prod = state.productos.find(function(p){
-    return clean.toUpperCase().includes(p.cod.toUpperCase()) ||
-           extractedCode.toUpperCase().includes(p.cod.toUpperCase()) ||
-           p.cod.toUpperCase().includes(extractedCode.toUpperCase());
+    return parsed.prodCode.toUpperCase().includes(p.cod.toUpperCase()) ||
+           p.cod.toUpperCase().includes(parsed.prodCode.toUpperCase()) ||
+           parsed.full.toUpperCase().includes(p.cod.toUpperCase());
   });
   if(prod){
     document.getElementById('mov-prod').value = prod.id;
