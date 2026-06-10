@@ -7,6 +7,7 @@
 <title>WMS Depósito Caótico</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 <style>
   /* ── ECZANE BRAND SYSTEM ───────────────────────────────────────
      Azul   #005480   Naranja  #f17b20   Gris  #909295
@@ -635,32 +636,80 @@ function startCamera() {
     return;
   }
 
-  navigator.mediaDevices.getUserMedia({
-    video: {
-      facingMode: {ideal: 'environment'},
-      width: {ideal: 1280},
-      height: {ideal: 720}
+  // Make sure video is visible
+  video.style.display = 'block';
+  video.style.zIndex = '1';
+
+  if (isLocScan) {
+    // QR: native getUserMedia + jsQR canvas loop
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: {ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }
+    }).then(function(stream) {
+      scanStream = stream;
+      video.srcObject = stream;
+      video.setAttribute('playsinline','');
+      video.muted = true;
+      video.play().catch(function(){});
+      msg.textContent = 'Apuntá al QR de la ubicación';
+      startFrameScan(true);
+    }).catch(function(e){ msg.textContent = 'Sin acceso a cámara'; console.log(e); });
+
+  } else if (window.ZXing) {
+    // Barcode: ZXing (the version that successfully read Code39)
+    try {
+      var hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.CODE_128,
+        ZXing.BarcodeFormat.QR_CODE
+      ]);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+      var codeReader = new ZXing.BrowserMultiFormatReader(hints);
+      scanStream = codeReader;
+      msg.textContent = 'Iniciando escáner...';
+
+      codeReader.decodeFromConstraints(
+        { video: { facingMode: {ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} } },
+        video,
+        function(result, err) {
+          if (result) {
+            processScan(result.getText());
+          }
+        }
+      ).then(function(){
+        msg.textContent = 'Apuntá al código de barras';
+      }).catch(function(e){
+        console.log('ZXing error:', e);
+        msg.textContent = 'Apuntá al código de barras';
+      });
+
+    } catch(e) {
+      console.log('ZXing init error:', e);
+      // Fallback to BarcodeDetector
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }
+      }).then(function(stream){
+        scanStream = stream;
+        video.srcObject = stream;
+        video.play().catch(function(){});
+        msg.textContent = 'Apuntá al código de barras';
+        startFrameScan(false);
+      }).catch(function(){ msg.textContent = 'Sin acceso a cámara'; });
     }
-  })
-  .then(function(stream) {
-    scanStream = stream;
-    video.style.display = 'block';
-    video.style.zIndex = '1';
-    video.srcObject = stream;
-    video.setAttribute('playsinline', '');
-    video.muted = true;
-    video.play().then(function(){
-      msg.textContent = isLocScan ? 'Apuntá al QR' : 'Apuntá al código de barras';
-    }).catch(function(e){
-      console.log('play error:', e);
-      msg.textContent = isLocScan ? 'Apuntá al QR' : 'Apuntá al código de barras';
-    });
-    startFrameScan(isLocScan);
-  })
-  .catch(function(e) {
-    msg.textContent = 'Sin acceso a cámara — usá ingreso manual';
-    console.log(e);
-  });
+
+  } else {
+    // Fallback: native getUserMedia + BarcodeDetector
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }
+    }).then(function(stream){
+      scanStream = stream;
+      video.srcObject = stream;
+      video.play().catch(function(){});
+      msg.textContent = 'Apuntá al código de barras';
+      startFrameScan(false);
+    }).catch(function(e){ msg.textContent = 'Sin acceso a cámara'; console.log(e); });
+  }
 }
 
 function startFrameScan(isLocScan) {
@@ -720,18 +769,9 @@ function startQRScan() { /* merged */ }
 function closeScanner(){
   document.getElementById('modal-scanner').classList.remove('open');
   if(scanInterval){clearInterval(scanInterval);scanInterval=null;}
-  // Stop Quagga if it was running
-  if(scanStream === 'quagga') {
-    try { Quagga.stop(); } catch(e){}
-    try { Quagga.offDetected(); } catch(e){}
-    // Remove quagga's video element
-    var viewport = document.getElementById('scanner-viewport');
-    var qv = viewport ? viewport.querySelector('video') : null;
-    if(qv && qv !== document.getElementById('scanner-video')) {
-      try { qv.srcObject && qv.srcObject.getTracks().forEach(function(t){t.stop();}); } catch(e){}
-      try { qv.parentNode.removeChild(qv); } catch(e){}
-    }
-    document.getElementById('scanner-video').style.display = '';
+  // Stop ZXing reader if running
+  if(scanStream && scanStream.reset) {
+    try { scanStream.reset(); } catch(e){}
   } else if(scanStream && scanStream.getTracks) {
     scanStream.getTracks().forEach(function(t){t.stop();});
   }
