@@ -525,6 +525,7 @@
           </div>
         </div>
         <div id="scanner-cam-msg" style="position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.8);z-index:3;text-shadow:0 1px 2px rgba(0,0,0,.8);">Iniciando cámara...</div>
+      <div id="scanner-format-msg" style="position:absolute;top:6px;left:0;right:0;text-align:center;font-size:10px;color:rgba(255,255,0,.9);z-index:3;padding:0 8px;"></div>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:10px;">
         <div class="text-sm" style="margin-bottom:6px;">O ingresá / escaneá con lector USB (enfocá acá):</div>
@@ -663,12 +664,24 @@ function startFrameScan(isLocScan) {
   var bd = null;
   if (hasBD) {
     try {
+      // Get all supported formats first
+      BarcodeDetector.getSupportedFormats().then(function(supported) {
+        var fmtMsg = document.getElementById('scanner-format-msg');
+        if (fmtMsg) fmtMsg.textContent = 'Formatos: ' + supported.join(', ');
+      }).catch(function(){});
+
       if (isLocScan) {
         bd = new BarcodeDetector({formats: ['qr_code']});
       } else {
-        bd = new BarcodeDetector({formats: ['code_39', 'code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'data_matrix']});
+        // Use unknown format to get ALL supported formats
+        bd = new BarcodeDetector({formats: ['unknown']});
       }
-    } catch(e) { hasBD = false; }
+    } catch(e) {
+      // unknown not supported — try explicit list
+      try {
+        bd = new BarcodeDetector({formats: ['code_39', 'code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'data_matrix', 'qr_code']});
+      } catch(e2) { hasBD = false; }
+    }
   }
 
   scanInterval = setInterval(function() {
