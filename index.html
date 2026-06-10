@@ -93,7 +93,7 @@
   .stat-label{font-size:11px;color:var(--text2);}
 
   /* TABLE */
-  .tbl-wrap{overflow-x:auto;}
+  .tbl-wrap{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 320px);}
   table{width:100%;border-collapse:collapse;font-size:12px;}
   th{padding:9px 12px;text-align:left;font-weight:700;color:var(--blue);font-size:10px;letter-spacing:.07em;text-transform:uppercase;border-bottom:2px solid var(--border);background:var(--surface2);}
   td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--text);}
@@ -154,7 +154,7 @@
   .legend-dot{width:10px;height:10px;border-radius:2px;border:1px solid;}
 
   /* EXPIRY */
-  .exp-list{display:flex;flex-direction:column;}
+  .exp-list{display:flex;flex-direction:column;max-height:calc(100vh - 300px);overflow-y:auto;}
   .exp-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);}
   .exp-row:last-child{border-bottom:none;}
   .exp-days{font-family:var(--mono);font-weight:700;font-size:13px;min-width:36px;}
@@ -238,6 +238,7 @@
     <button class="nav-btn" onclick="showPanel('vencimientos',this)">Vencimientos</button>
     <button class="nav-btn" onclick="showPanel('productos',this)">Productos</button>
     <button class="nav-btn" onclick="showPanel('qr',this)">QR Ubicaciones</button>
+      <button class="nav-btn" onclick="showPanel('operario',this)">📦 Operario</button>
     <button class="nav-btn" onclick="showPanel('config',this)" style="margin-left:auto;">⚙ Config</button>
   </div>
   <div class="main">
@@ -373,7 +374,7 @@
       <div class="card">
         <div class="card-header">Historial de movimientos</div>
         <div class="search-bar"><input class="form-control" id="mov-search" placeholder="Buscar en historial..." oninput="renderMovimientos()"></div>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap" style="max-height:400px;overflow-y:auto;">
           <table><thead><tr><th>Fecha/Hora</th><th>Tipo</th><th>Producto</th><th>Lote</th><th>Cat.</th><th>Cantidad</th><th>Origen</th><th>Destino</th><th>Obs.</th></tr></thead>
           <tbody id="mov-tbody"></tbody></table>
           <div id="mov-empty" class="empty-state" style="display:none;">Sin movimientos registrados</div>
@@ -383,7 +384,7 @@
 
     <!-- MAPA -->
     <div class="panel" id="panel-mapa">
-      <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;">
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;min-height:0;height:100%;">
         <div>
           <div class="card">
             <div class="card-header">Mapa del Depósito<span class="text-sm text-mono" id="map-total-locs"></span></div>
@@ -393,7 +394,7 @@
               <div class="legend-item"><div class="legend-dot" style="background:#e8f4fb;border-color:rgba(0,104,158,.4);"></div>Múltiple</div>
               <div class="legend-item"><div class="legend-dot" style="background:var(--orange-light);border-color:rgba(241,123,32,.4);"></div>Próx. vencer</div>
             </div>
-            <div id="map-container"></div>
+            <div id="map-container" style="overflow-y:auto;max-height:calc(100vh - 260px);"></div>
           </div>
         </div>
         <div>
@@ -1099,9 +1100,10 @@ function renderMapa(){
 function showLocDetail(code){
   var it=state.stock.filter(function(s){return s.ubicacion===code;});
   var d=document.getElementById('map-detail');
-  if(!it.length){d.innerHTML='<div><span class="loc-code">'+code+'</span></div><div class="text-sm" style="margin-top:8px;">Libre</div>';return;}
+  var delBtn='<button class="btn btn-sm" style="margin-top:10px;color:var(--error);border-color:var(--error);" data-code="'+code+'" onclick="eliminarUbicacion(this.dataset.code)">🗑 Eliminar ubicación</button>';
+  if(!it.length){d.innerHTML='<div><span class="loc-code">'+code+'</span></div><div class="text-sm" style="margin-top:8px;color:var(--text2);">Libre — sin stock</div>'+delBtn;return;}
   d.innerHTML='<div style="margin-bottom:10px;"><span class="loc-code">'+code+'</span></div>'+
-    it.map(function(s){return'<div style="padding:8px;background:var(--surface2);border-radius:6px;margin-bottom:6px;font-size:12px;"><div style="font-weight:600;margin-bottom:3px;">'+getProdNom(s.prodId)+'</div><div class="text-sm">Lote: <span class="text-mono">'+s.lote+'</span></div><div class="text-sm">Cant: <b>'+parseFloat(s.qty||0).toLocaleString('es-AR')+' '+s.unit+'</b></div><div class="text-sm">Vto: '+(s.venc||'—')+' '+expStatus(s.venc)+'</div>'+catBadge(s.cat)+'</div>';}).join('');
+    it.map(function(s){return'<div style="padding:8px;background:var(--surface2);border-radius:6px;margin-bottom:6px;font-size:12px;"><div style="font-weight:600;margin-bottom:3px;">'+getProdNom(s.prodId)+'</div><div class="text-sm">Lote: <span class="text-mono">'+s.lote+'</span></div><div class="text-sm">Cant: <b>'+parseFloat(s.qty||0).toLocaleString('es-AR')+' '+s.unit+'</b></div><div class="text-sm">Vto: '+(s.venc||'—')+' '+expStatus(s.venc)+'</div>'+catBadge(s.cat)+'</div>';}).join('')+delBtn;
 }
 
 function renderVencimientos(){
@@ -1282,6 +1284,122 @@ setInterval(function(){document.getElementById('clock').textContent=new Date().t
 document.getElementById('clock').textContent=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
 toggleMovForm();
+// ════════════════════════════════════════════
+// MODO OPERARIO
+// ════════════════════════════════════════════
+var opState = { prod: null, loc: null };
+
+function opScanProd() { openScanner('op-producto'); }
+function opScanLoc()  { openScanner('op-ubicacion'); }
+
+function opQtyAdj(delta) {
+  var el = document.getElementById('op-qty');
+  el.value = Math.max(0.01, (parseFloat(el.value)||1) + delta);
+}
+
+function opResetProd() {
+  opState.prod = null;
+  document.getElementById('op-prod-result').style.display = 'none';
+  document.getElementById('op-btn-prod').style.display = 'flex';
+  opLockLoc(); opUpdateConfirm();
+}
+
+function opResetLoc() {
+  opState.loc = null;
+  document.getElementById('op-loc-result').style.display = 'none';
+  document.getElementById('op-btn-loc').style.display = 'flex';
+  opUpdateConfirm();
+}
+
+function opLockLoc() {
+  var card=document.getElementById('op-card-loc'), btn=document.getElementById('op-btn-loc'), icon=document.getElementById('op-step2-icon');
+  card.style.opacity='.5'; btn.disabled=true; btn.style.background='var(--gray)'; btn.style.cursor='not-allowed'; icon.style.background='var(--gray)';
+  document.getElementById('op-loc-result').style.display='none'; opState.loc=null;
+}
+
+function opUnlockLoc() {
+  var card=document.getElementById('op-card-loc'), btn=document.getElementById('op-btn-loc'), icon=document.getElementById('op-step2-icon');
+  card.style.opacity='1'; btn.disabled=false; btn.style.background='var(--orange)'; btn.style.cursor='pointer'; icon.style.background='var(--orange)';
+}
+
+function opUpdateConfirm() {
+  var btn=document.getElementById('op-btn-confirm');
+  if(opState.prod && opState.loc){ btn.disabled=false; btn.style.background='#2e7d32'; btn.style.cursor='pointer'; }
+  else { btn.disabled=true; btn.style.background='var(--gray)'; btn.style.cursor='not-allowed'; }
+}
+
+function opSetProducto(barcode) {
+  var parsed = parseEczaneBarcode(barcode);
+  var prod = state.productos.find(function(p){
+    return parsed.prodCode.toUpperCase().includes(p.cod.toUpperCase()) ||
+           p.cod.toUpperCase().includes(parsed.prodCode.toUpperCase()) ||
+           parsed.full.toUpperCase().includes(p.cod.toUpperCase());
+  });
+  opState.prod = {
+    id: prod?prod.id:'', cod: parsed.prodCode,
+    nom: prod?prod.nom:parsed.prodCode, cat: prod?prod.cat:'MP',
+    unit: prod?prod.unit:'kg',
+    lote: parsed.nroAnalisis ? parsed.prodCode+'-'+parsed.nroAnalisis : parsed.full
+  };
+  document.getElementById('op-prod-nom').textContent = opState.prod.nom;
+  document.getElementById('op-prod-cod').textContent = opState.prod.cod;
+  document.getElementById('op-prod-lote').textContent = parsed.nroAnalisis ? 'Análisis N°: '+parsed.nroAnalisis : '';
+  document.getElementById('op-prod-result').style.display='block';
+  document.getElementById('op-btn-prod').style.display='none';
+  document.getElementById('op-card-prod').style.borderColor='var(--blue)';
+  opUnlockLoc(); opUpdateConfirm();
+  setTimeout(function(){ opScanLoc(); }, 600);
+}
+
+function opSetUbicacion(code) {
+  var loc = code.replace(/^LOC:/i,'').trim();
+  opState.loc = loc;
+  document.getElementById('op-loc-code').textContent = loc;
+  document.getElementById('op-loc-result').style.display='block';
+  document.getElementById('op-btn-loc').style.display='none';
+  document.getElementById('op-card-loc').style.borderColor='var(--orange)';
+  opUpdateConfirm();
+}
+
+function opConfirmar() {
+  if(!opState.prod || !opState.loc) return;
+  var btn = document.getElementById('op-btn-confirm');
+  btn.textContent='Registrando...'; btn.disabled=true;
+  var qty = parseFloat(document.getElementById('op-qty').value)||1;
+  var unit = document.getElementById('op-unit').value;
+  var data = {
+    tipo:'entrada', prodId:opState.prod.id, prod:opState.prod.nom,
+    lote:opState.prod.lote, cat:opState.prod.cat, qty:qty, unit:unit,
+    destino:opState.loc, origen:'', obs:'Modo operario',
+    ts:new Date().toLocaleString('es-AR',{timeZone:'America/Argentina/Buenos_Aires'})
+  };
+  apiCall('addMovimiento',{data:data}).then(function(){
+    document.getElementById('op-main').style.display='none';
+    document.getElementById('op-success').style.display='block';
+    document.getElementById('op-success-msg').textContent = opState.prod.nom+' → '+opState.loc+' ('+qty+' '+unit+')';
+    loadFromSheets();
+  }).catch(function(){ showToast('Error al registrar','error'); btn.textContent='✓ Confirmar entrada'; btn.disabled=false; });
+}
+
+function opNuevo() {
+  opState={prod:null,loc:null};
+  document.getElementById('op-main').style.display='flex';
+  document.getElementById('op-success').style.display='none';
+  document.getElementById('op-prod-result').style.display='none';
+  document.getElementById('op-btn-prod').style.display='flex';
+  document.getElementById('op-card-prod').style.borderColor='var(--border)';
+  document.getElementById('op-qty').value=1;
+  opLockLoc(); opUpdateConfirm();
+}
+
+// Hook into processScan for operario mode
+var _origProcessScan = processScan;
+processScan = function(raw) {
+  if(scanTarget==='op-producto') { closeScanner(); opSetProducto(raw); return; }
+  if(scanTarget==='op-ubicacion') { closeScanner(); opSetUbicacion(raw); return; }
+  _origProcessScan(raw);
+};
+
 if(API_URL){document.getElementById('cfg-url').value=API_URL;loadFromSheets();}else{document.getElementById('setup-banner').style.display='flex';setSyncStatus('error','Sin configurar');refreshAll();}
 setInterval(function(){if(API_URL&&isConnected)loadFromSheets();},60000);
 </script>
