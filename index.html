@@ -664,24 +664,12 @@ function startFrameScan(isLocScan) {
   var bd = null;
   if (hasBD) {
     try {
-      // Get all supported formats first
-      BarcodeDetector.getSupportedFormats().then(function(supported) {
-        var fmtMsg = document.getElementById('scanner-format-msg');
-        if (fmtMsg) fmtMsg.textContent = 'Formatos: ' + supported.join(', ');
-      }).catch(function(){});
-
       if (isLocScan) {
         bd = new BarcodeDetector({formats: ['qr_code']});
       } else {
-        // Use unknown format to get ALL supported formats
-        bd = new BarcodeDetector({formats: ['unknown']});
+        bd = new BarcodeDetector({formats: ['code_39', 'code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'data_matrix']});
       }
-    } catch(e) {
-      // unknown not supported — try explicit list
-      try {
-        bd = new BarcodeDetector({formats: ['code_39', 'code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'data_matrix', 'qr_code']});
-      } catch(e2) { hasBD = false; }
-    }
+    } catch(e) { hasBD = false; }
   }
 
   scanInterval = setInterval(function() {
