@@ -522,7 +522,8 @@
 
 <!-- PANEL OPERARIO -->
     <div class="panel" id="panel-operario">
-      <div class="card" style="max-width:480px;width:100%;">
+      <div style="width:100%;max-width:480px;margin-bottom:auto;">
+      <div class="card" style="width:100%;">
         <div class="card-header">📦 Entrada de Mercadería</div>
         <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
 
@@ -574,6 +575,7 @@
           </div>
 
         </div>
+      </div>
       </div>
     </div>
 
@@ -1471,6 +1473,16 @@ processScan = function(raw) {
 
 if(API_URL){document.getElementById('cfg-url').value=API_URL;loadFromSheets();}else{document.getElementById('setup-banner').style.display='flex';setSyncStatus('error','Sin configurar');refreshAll();}
 setInterval(function(){if(API_URL&&isConnected)loadFromSheets();},60000);
+
+// Fix panel-operario position on every showPanel call
+var _origShowPanel = showPanel;
+showPanel = function(id, btn) {
+  _origShowPanel(id, btn);
+  if(id === 'operario') {
+    var p = document.getElementById('panel-operario');
+    p.style.cssText = 'flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:0;';
+  }
+};
 </script>
 </body>
 </html>
