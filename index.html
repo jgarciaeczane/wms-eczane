@@ -515,7 +515,76 @@
   </div>
 </div>
 
-<!-- MODAL SCANNER -->
+<!-- PANEL OPERARIO -->
+    <div class="panel" id="panel-operario">
+      <div id="op-main" style="display:flex;flex-direction:column;gap:16px;max-width:480px;margin:0 auto;width:100%;padding-bottom:24px;">
+        <div style="text-align:center;padding:8px 0;">
+          <div style="font-size:22px;font-weight:700;color:var(--blue);">📦 Entrada de Mercadería</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px;">Escaneá producto y ubicación</div>
+        </div>
+        <div id="op-card-prod" class="card" style="border:2px solid var(--border);transition:border-color .2s;">
+          <div style="padding:16px 20px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+              <div id="op-step1-icon" style="width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0;">1</div>
+              <div style="font-size:16px;font-weight:600;color:var(--blue);">Producto</div>
+            </div>
+            <button id="op-btn-prod" onclick="opScanProd()" style="width:100%;padding:18px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:17px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
+              📷 Escanear código de barras
+            </button>
+            <div id="op-prod-result" style="display:none;margin-top:12px;padding:12px 14px;background:var(--blue-light);border-radius:8px;border-left:4px solid var(--blue);">
+              <div style="font-size:12px;color:var(--text2);margin-bottom:2px;">Producto detectado</div>
+              <div id="op-prod-nom" style="font-size:15px;font-weight:700;color:var(--blue);"></div>
+              <div id="op-prod-cod" style="font-size:12px;font-family:var(--mono);color:var(--text2);margin-top:2px;"></div>
+              <div id="op-prod-lote" style="font-size:12px;color:var(--text2);margin-top:2px;"></div>
+              <button onclick="opResetProd()" style="margin-top:8px;font-size:11px;color:var(--error);background:none;border:none;cursor:pointer;padding:0;">✕ Cambiar</button>
+            </div>
+          </div>
+        </div>
+        <div id="op-card-loc" class="card" style="border:2px solid var(--border);transition:border-color .2s;opacity:.5;">
+          <div style="padding:16px 20px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+              <div id="op-step2-icon" style="width:32px;height:32px;border-radius:50%;background:var(--gray);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0;">2</div>
+              <div style="font-size:16px;font-weight:600;color:var(--text2);">Ubicación destino</div>
+            </div>
+            <button id="op-btn-loc" onclick="opScanLoc()" disabled style="width:100%;padding:18px;background:var(--gray);color:#fff;border:none;border-radius:8px;font-size:17px;font-weight:600;cursor:not-allowed;display:flex;align-items:center;justify-content:center;gap:10px;">
+              📷 Escanear QR de ubicación
+            </button>
+            <div id="op-loc-result" style="display:none;margin-top:12px;padding:12px 14px;background:var(--orange-light);border-radius:8px;border-left:4px solid var(--orange);">
+              <div style="font-size:12px;color:var(--text2);margin-bottom:2px;">Ubicación seleccionada</div>
+              <div id="op-loc-code" style="font-size:20px;font-weight:700;color:var(--orange);font-family:var(--mono);"></div>
+              <button onclick="opResetLoc()" style="margin-top:6px;font-size:11px;color:var(--error);background:none;border:none;cursor:pointer;padding:0;">✕ Cambiar</button>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="border:2px solid var(--border);">
+          <div style="padding:16px 20px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+              <div style="width:32px;height:32px;border-radius:50%;background:var(--gray-mid);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0;">3</div>
+              <div style="font-size:16px;font-weight:600;color:var(--text2);">Cantidad <span style="font-size:12px;font-weight:400;">(opcional)</span></div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <button onclick="opQtyAdj(-1)" style="width:48px;height:48px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);font-size:22px;cursor:pointer;flex-shrink:0;">−</button>
+              <input id="op-qty" type="number" value="1" min="0.01" step="1" style="flex:1;text-align:center;font-size:22px;font-weight:700;padding:10px;border:1px solid var(--border);border-radius:8px;">
+              <button onclick="opQtyAdj(1)" style="width:48px;height:48px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);font-size:22px;cursor:pointer;flex-shrink:0;">+</button>
+              <select id="op-unit" style="padding:10px 8px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+                <option>kg</option><option>g</option><option>L</option><option>mL</option><option>unidades</option><option>cajas</option><option>bolsas</option><option>tambores</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <button id="op-btn-confirm" onclick="opConfirmar()" disabled style="width:100%;padding:20px;background:var(--gray);color:#fff;border:none;border-radius:10px;font-size:20px;font-weight:700;cursor:not-allowed;transition:background .2s;margin-bottom:8px;">
+          ✓ Confirmar entrada
+        </button>
+      </div>
+      <div id="op-success" style="display:none;text-align:center;padding:24px;background:#e8f7ee;border-radius:10px;border:2px solid #4caf50;max-width:480px;margin:0 auto;width:100%;">
+        <div style="font-size:40px;">✅</div>
+        <div style="font-size:18px;font-weight:700;color:#2e7d32;margin-top:8px;">¡Entrada registrada!</div>
+        <div id="op-success-msg" style="font-size:13px;color:#388e3c;margin-top:6px;"></div>
+        <button onclick="opNuevo()" style="margin-top:16px;padding:14px 32px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;">+ Nueva entrada</button>
+      </div>
+    </div>
+
+    <!-- MODAL SCANNER -->
 <div class="modal-overlay" id="modal-scanner">
   <div class="modal" style="width:420px;">
     <div class="modal-header">
