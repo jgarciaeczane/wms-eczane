@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WMS Depósito Caótico</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
   /* ── ECZANE BRAND SYSTEM ───────────────────────────────────────
      Azul   #005480   Naranja  #f17b20   Gris  #909295
@@ -626,59 +627,72 @@ function openScanner(target) {
 function startCamera() {
   var video = document.getElementById('scanner-video');
   var msg = document.getElementById('scanner-cam-msg');
+  var isLocScan = (scanTarget === 'ubicacion' || scanTarget === 'origen');
+
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     msg.textContent = 'Cámara no disponible — usá el lector USB';
     return;
   }
-  // Try ZXing first (works on all devices including iPhone)
-  if(window.ZXing) {
-    try {
-      var hints = new Map();
-      // For product scanning: Code39 + Code128 only (no EAN which conflicts)
-      // For location scanning: QR only
-      var isLocScan = (scanTarget === 'ubicacion' || scanTarget === 'origen');
-      var formats;
-      if(isLocScan) {
-        formats = [ZXing.BarcodeFormat.QR_CODE];
-      } else {
-        formats = [
-          ZXing.BarcodeFormat.CODE_39,
-          ZXing.BarcodeFormat.CODE_128,
-          ZXing.BarcodeFormat.QR_CODE
-        ];
-      }
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-      var codeReader = new ZXing.BrowserMultiFormatReader(hints);
-      scanStream = codeReader;
-      msg.textContent = 'Apuntá al código';
-      codeReader.decodeFromConstraints(
-        {video: {facingMode: 'environment'}},
-        video,
-        function(result, err) {
-          if (result) {
-            processScan(result.getText());
-          }
+
+  if(isLocScan) {
+    // QR: use jsQR via canvas loop
+    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:720}}})
+      .then(function(stream){
+        scanStream = stream;
+        video.srcObject = stream;
+        video.play();
+        msg.textContent = 'Apuntá al QR de la ubicación';
+        startQRScan();
+      })
+      .catch(function(e){msg.textContent = 'Sin acceso a cámara'; console.log(e);});
+  } else {
+    // Code39/Code128: use QuaggaJS
+    msg.textContent = 'Iniciando escáner...';
+    var container = document.getElementById('scanner-video').parentElement;
+    // Hide video, Quagga uses its own canvas
+    video.style.display = 'none';
+
+    Quagga.init({
+      inputStream: {
+        name: 'Live',
+        type: 'LiveStream',
+        target: container,
+        constraints: {
+          facingMode: 'environment',
+          width: {min:640, ideal:1280},
+          height: {min:480, ideal:720}
         }
-      );
-      return;
-    } catch(e) {
-      console.log('ZXing error, falling back:', e);
-    }
+      },
+      decoder: {
+        readers: ['code_39_reader', 'code_128_reader', 'code_39_vin_reader'],
+        debug: { drawBoundingBox: true, showFrequency: false, drawScanline: true, showPattern: false }
+      },
+      locate: true,
+      numOfWorkers: 2,
+      frequency: 10
+    }, function(err) {
+      if(err) {
+        console.log('Quagga init error:', err);
+        msg.textContent = 'Error al iniciar escáner';
+        video.style.display = '';
+        return;
+      }
+      Quagga.start();
+      scanStream = 'quagga';
+      msg.textContent = 'Apuntá al código de barras';
+    });
+
+    Quagga.onDetected(function(result) {
+      if(!result || !result.codeResult) return;
+      var code = result.codeResult.code;
+      if(code && code.length > 3) {
+        processScan(code);
+      }
+    });
   }
-  // Fallback: BarcodeDetector (Chrome Android)
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:720}}})
-    .then(function(stream){
-      scanStream = stream;
-      video.srcObject = stream;
-      video.play();
-      msg.textContent = 'Apuntá al código';
-      startFrameScan();
-    })
-    .catch(function(e){msg.textContent = 'Sin acceso a cámara — usá el lector USB'; console.log(e);});
 }
 
-function startFrameScan() {
+function startQRScan() {
   var video = document.getElementById('scanner-video');
   var canvas = document.getElementById('scanner-canvas');
   var ctx = canvas.getContext('2d');
@@ -687,29 +701,32 @@ function startFrameScan() {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    if(window.BarcodeDetector){
-      var bd = new BarcodeDetector({formats:['qr_code','code_128','ean_13','ean_8','code_39','data_matrix','upc_a','upc_e']});
-      bd.detect(canvas).then(function(codes){
-        if(codes.length > 0) processScan(codes[0].rawValue);
-      }).catch(function(){});
+    var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    if(window.jsQR) {
+      var code = jsQR(imageData.data, canvas.width, canvas.height, {inversionAttempts:'dontInvert'});
+      if(code && code.data) processScan(code.data);
     }
-  }, 300);
+  }, 200);
 }
+
+function startFrameScan() { /* legacy fallback */ }
 
 function closeScanner(){
   document.getElementById('modal-scanner').classList.remove('open');
-  if(scanStream){
-    if(scanStream && scanStream.reset) {
-      // ZXing reader
-      try { scanStream.reset(); } catch(e){}
-    } else if(scanStream && scanStream.getTracks) {
-      scanStream.getTracks().forEach(function(t){t.stop();});
-    }
-    scanStream=null;
+  // Stop Quagga if running
+  if(scanStream === 'quagga') {
+    try { Quagga.stop(); Quagga.offDetected(); } catch(e){}
+    // Show video again
+    document.getElementById('scanner-video').style.display = '';
+    // Remove quagga canvas if added
+    var qCanvas = document.querySelector('#modal-scanner canvas.drawingBuffer');
+    if(qCanvas) try { qCanvas.parentElement.removeChild(qCanvas); } catch(e){}
+  } else if(scanStream && scanStream.getTracks) {
+    scanStream.getTracks().forEach(function(t){t.stop();});
   }
+  scanStream = null;
   if(scanInterval){clearInterval(scanInterval);scanInterval=null;}
-  scanTarget=null;
-  // Stop video element
+  scanTarget = null;
   var video = document.getElementById('scanner-video');
   if(video && video.srcObject){
     try { video.srcObject.getTracks().forEach(function(t){t.stop();}); } catch(e){}
