@@ -622,6 +622,7 @@ function openScanner(target) {
 function startCamera() {
   var video = document.getElementById('scanner-video');
   var msg = document.getElementById('scanner-cam-msg');
+  var viewport = document.getElementById('scanner-viewport');
   var isLocScan = (scanTarget === 'ubicacion' || scanTarget === 'origen');
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -629,79 +630,109 @@ function startCamera() {
     return;
   }
 
-  // Single approach for all devices: native getUserMedia + canvas
-  // Works on iPhone Safari, Android Chrome, desktop
-  navigator.mediaDevices.getUserMedia({
-    video: {
-      facingMode: {ideal: 'environment'},
-      width: {ideal: 1280},
-      height: {ideal: 720}
-    }
-  })
-  .then(function(stream) {
-    scanStream = stream;
-    video.style.display = '';
-    video.srcObject = stream;
-    video.setAttribute('playsinline', true);
-    video.muted = true;
-    video.play().catch(function(){});
-    msg.textContent = isLocScan ? 'Apuntá al QR de la ubicación' : 'Apuntá al código de barras';
-    startFrameScan(isLocScan);
-  })
-  .catch(function(e) {
-    msg.textContent = 'Sin acceso a cámara — usá ingreso manual';
-    console.log('Camera error:', e);
-  });
+  if (isLocScan) {
+    // QR: native video + jsQR canvas loop
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: {ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }
+    }).then(function(stream) {
+      scanStream = stream;
+      video.srcObject = stream;
+      video.play().catch(function(){});
+      msg.textContent = 'Apuntá al QR de la ubicación';
+      startFrameScan(true);
+    }).catch(function(e){ msg.textContent = 'Sin acceso a cámara'; });
+
+  } else {
+    // Barcode: Quagga2 LiveStream (handles its own camera)
+    video.style.display = 'none'; // Quagga adds its own video
+    msg.textContent = 'Iniciando escáner...';
+
+    Quagga.init({
+      inputStream: {
+        type: 'LiveStream',
+        target: viewport,
+        constraints: {
+          facingMode: 'environment',
+          width: {min:640, ideal:1280, max:1920},
+          height: {min:480, ideal:720, max:1080}
+        },
+        area: { top:'20%', right:'5%', left:'5%', bottom:'20%' }
+      },
+      locator: { patchSize:'medium', halfSample:true },
+      numOfWorkers: 0,
+      frequency: 8,
+      decoder: {
+        readers: ['code_39_reader','code_128_reader'],
+        debug: { drawBoundingBox:false, showFrequency:false, drawScanline:false }
+      },
+      locate: true
+    }, function(err) {
+      if (err) {
+        console.log('Quagga err:', err);
+        // Fallback: use native video + canvas decode
+        video.style.display = '';
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }
+        }).then(function(stream) {
+          scanStream = stream;
+          video.srcObject = stream;
+          video.play().catch(function(){});
+          msg.textContent = 'Apuntá al código de barras';
+          startFrameScan(false);
+        }).catch(function(){ msg.textContent = 'Sin acceso a cámara'; });
+        return;
+      }
+      Quagga.start();
+      scanStream = 'quagga';
+      msg.textContent = 'Apuntá al código de barras';
+      // Make Quagga video visible
+      var qVideo = viewport.querySelector('video');
+      if (qVideo) {
+        qVideo.style.cssText = 'width:100%;display:block;border-radius:8px;';
+      }
+    });
+
+    Quagga.onDetected(function(data) {
+      if (!data || !data.codeResult) return;
+      var code = data.codeResult.code;
+      if (code && code.length > 4) processScan(code);
+    });
+  }
 }
 
 function startFrameScan(isLocScan) {
   var video = document.getElementById('scanner-video');
   var canvas = document.getElementById('scanner-canvas');
-  var ctx = canvas.getContext('2d', {willReadFrequently: true});
-  var lastCode = '';
-  var confirmCount = 0;
+  var ctx = canvas.getContext('2d', {willReadFrequently:true});
+  var lastCode = '', confirmCount = 0;
 
   scanInterval = setInterval(function() {
-    if (!video || video.readyState < 2 || video.paused) return;
+    if (!video || video.readyState < 2) return;
     var w = video.videoWidth, h = video.videoHeight;
     if (!w || !h) return;
-    canvas.width = w;
-    canvas.height = h;
+    canvas.width = w; canvas.height = h;
     ctx.drawImage(video, 0, 0, w, h);
 
-    if (isLocScan) {
-      // QR with jsQR
-      if (!window.jsQR) return;
+    if (isLocScan && window.jsQR) {
       var img = ctx.getImageData(0, 0, w, h);
-      var qr = jsQR(img.data, w, h, {inversionAttempts: 'dontInvert'});
+      var qr = jsQR(img.data, w, h, {inversionAttempts:'dontInvert'});
       if (qr && qr.data) processScan(qr.data);
-    } else {
-      // Barcode with Quagga2 single image decode
-      if (!window.Quagga) return;
-      var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    } else if (!isLocScan && window.Quagga) {
       Quagga.decodeSingle({
-        src: dataUrl,
+        src: canvas.toDataURL('image/jpeg', 0.85),
         numOfWorkers: 0,
         locate: true,
-        inputStream: { size: 800 },
-        decoder: {
-          readers: ['code_39_reader', 'code_128_reader'],
-          tryHarder: true
-        }
+        inputStream: {size:800},
+        decoder: { readers:['code_39_reader','code_128_reader'], tryHarder:true }
       }, function(result) {
         if (result && result.codeResult && result.codeResult.code) {
           var code = result.codeResult.code;
-          if (code === lastCode) {
-            confirmCount++;
-            if (confirmCount >= 2) { confirmCount = 0; processScan(code); }
-          } else {
-            lastCode = code;
-            confirmCount = 1;
-          }
+          if (code === lastCode) { if(++confirmCount >= 2){ confirmCount=0; processScan(code); } }
+          else { lastCode = code; confirmCount = 1; }
         }
       });
     }
-  }, 600);
+  }, 500);
 }
 
 function startQRScan() { /* merged */ }
@@ -709,7 +740,19 @@ function startQRScan() { /* merged */ }
 function closeScanner(){
   document.getElementById('modal-scanner').classList.remove('open');
   if(scanInterval){clearInterval(scanInterval);scanInterval=null;}
-  if(scanStream && scanStream.getTracks) {
+  // Stop Quagga if it was running
+  if(scanStream === 'quagga') {
+    try { Quagga.stop(); } catch(e){}
+    try { Quagga.offDetected(); } catch(e){}
+    // Remove quagga's video element
+    var viewport = document.getElementById('scanner-viewport');
+    var qv = viewport ? viewport.querySelector('video') : null;
+    if(qv && qv !== document.getElementById('scanner-video')) {
+      try { qv.srcObject && qv.srcObject.getTracks().forEach(function(t){t.stop();}); } catch(e){}
+      try { qv.parentNode.removeChild(qv); } catch(e){}
+    }
+    document.getElementById('scanner-video').style.display = '';
+  } else if(scanStream && scanStream.getTracks) {
     scanStream.getTracks().forEach(function(t){t.stop();});
   }
   scanStream = null;
