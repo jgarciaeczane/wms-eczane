@@ -1070,7 +1070,7 @@ function renderProductos(){
   if(countEl)countEl.textContent=total+' productos';
   if(pageEl)pageEl.textContent='Pág '+(Math.floor(_prodPage)+1)+' / '+Math.ceil(total/_prodSize);
   tb.innerHTML=_prodFilt.slice(start,end).map(function(p){
-    return'<tr><td class="text-mono" style="font-weight:600;">'+p.cod+'</td><td style="font-weight:500;">'+p.nom+'</td><td>'+catBadge(p.cat)+'</td><td style="color:var(--text2);">'+p.unit+'</td><td><button class="btn btn-ghost btn-sm" onclick="eliminarProducto(''+p.id+'')">Eliminar</button></td></tr>';
+    return'<tr><td class="text-mono" style="font-weight:600;">'+p.cod+'</td><td style="font-weight:500;">'+p.nom+'</td><td>'+catBadge(p.cat)+'</td><td style="color:var(--text2);">'+p.unit+'</td><td><button class="btn btn-ghost btn-sm" data-pid="'+p.id+'" onclick="eliminarProducto(this.dataset.pid)">Eliminar</button></td></tr>';
   }).join('');
 }
 
