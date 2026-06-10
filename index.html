@@ -6,7 +6,6 @@
 <title>WMS Depósito Caótico</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="https://unpkg.com/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 <style>
   /* ── ECZANE BRAND SYSTEM ───────────────────────────────────────
      Azul   #005480   Naranja  #f17b20   Gris  #909295
@@ -627,117 +626,74 @@ function openScanner(target) {
 function startCamera() {
   var video = document.getElementById('scanner-video');
   var msg = document.getElementById('scanner-cam-msg');
-  var viewport = document.getElementById('scanner-viewport');
   var isLocScan = (scanTarget === 'ubicacion' || scanTarget === 'origen');
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    msg.textContent = 'Cámara no disponible — usá el lector USB';
+    msg.textContent = 'Cámara no disponible — usá ingreso manual';
     return;
   }
 
-  if (isLocScan) {
-    // QR: native video + jsQR canvas loop
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: {ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }
-    }).then(function(stream) {
-      scanStream = stream;
-      video.srcObject = stream;
-      video.play().catch(function(){});
-      msg.textContent = 'Apuntá al QR de la ubicación';
-      startFrameScan(true);
-    }).catch(function(e){ msg.textContent = 'Sin acceso a cámara'; });
-
-  } else {
-    // Barcode: Quagga2 LiveStream (handles its own camera)
-    video.style.display = 'none'; // Quagga adds its own video
-    msg.textContent = 'Iniciando escáner...';
-
-    Quagga.init({
-      inputStream: {
-        type: 'LiveStream',
-        target: viewport,
-        constraints: {
-          facingMode: 'environment',
-          width: {min:640, ideal:1280, max:1920},
-          height: {min:480, ideal:720, max:1080}
-        },
-        area: { top:'20%', right:'5%', left:'5%', bottom:'20%' }
-      },
-      locator: { patchSize:'medium', halfSample:true },
-      numOfWorkers: 0,
-      frequency: 8,
-      decoder: {
-        readers: ['code_39_reader','code_128_reader'],
-        debug: { drawBoundingBox:false, showFrequency:false, drawScanline:false }
-      },
-      locate: true
-    }, function(err) {
-      if (err) {
-        console.log('Quagga err:', err);
-        // Fallback: use native video + canvas decode
-        video.style.display = '';
-        navigator.mediaDevices.getUserMedia({
-          video: { facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }
-        }).then(function(stream) {
-          scanStream = stream;
-          video.srcObject = stream;
-          video.play().catch(function(){});
-          msg.textContent = 'Apuntá al código de barras';
-          startFrameScan(false);
-        }).catch(function(){ msg.textContent = 'Sin acceso a cámara'; });
-        return;
-      }
-      Quagga.start();
-      scanStream = 'quagga';
-      msg.textContent = 'Apuntá al código de barras';
-      // Make Quagga video visible
-      var qVideo = viewport.querySelector('video');
-      if (qVideo) {
-        qVideo.style.cssText = 'width:100%;display:block;border-radius:8px;';
-      }
-    });
-
-    Quagga.onDetected(function(data) {
-      if (!data || !data.codeResult) return;
-      var code = data.codeResult.code;
-      if (code && code.length > 4) processScan(code);
-    });
-  }
+  navigator.mediaDevices.getUserMedia({
+    video: {
+      facingMode: {ideal: 'environment'},
+      width: {ideal: 1280},
+      height: {ideal: 720}
+    }
+  })
+  .then(function(stream) {
+    scanStream = stream;
+    video.srcObject = stream;
+    video.play().catch(function(){});
+    msg.textContent = isLocScan ? 'Apuntá al QR' : 'Apuntá al código de barras';
+    startFrameScan(isLocScan);
+  })
+  .catch(function(e) {
+    msg.textContent = 'Sin acceso a cámara — usá ingreso manual';
+    console.log(e);
+  });
 }
 
 function startFrameScan(isLocScan) {
   var video = document.getElementById('scanner-video');
   var canvas = document.getElementById('scanner-canvas');
-  var ctx = canvas.getContext('2d', {willReadFrequently:true});
-  var lastCode = '', confirmCount = 0;
+  var ctx = canvas.getContext('2d', {willReadFrequently: true});
+
+  // Check if BarcodeDetector is available (Android Chrome, Chrome desktop)
+  var hasBD = typeof BarcodeDetector !== 'undefined';
+  var bd = null;
+  if (hasBD) {
+    try {
+      if (isLocScan) {
+        bd = new BarcodeDetector({formats: ['qr_code']});
+      } else {
+        bd = new BarcodeDetector({formats: ['code_39', 'code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'data_matrix']});
+      }
+    } catch(e) { hasBD = false; }
+  }
 
   scanInterval = setInterval(function() {
     if (!video || video.readyState < 2) return;
     var w = video.videoWidth, h = video.videoHeight;
     if (!w || !h) return;
-    canvas.width = w; canvas.height = h;
+    canvas.width = w;
+    canvas.height = h;
     ctx.drawImage(video, 0, 0, w, h);
 
-    if (isLocScan && window.jsQR) {
-      var img = ctx.getImageData(0, 0, w, h);
-      var qr = jsQR(img.data, w, h, {inversionAttempts:'dontInvert'});
-      if (qr && qr.data) processScan(qr.data);
-    } else if (!isLocScan && window.Quagga) {
-      Quagga.decodeSingle({
-        src: canvas.toDataURL('image/jpeg', 0.85),
-        numOfWorkers: 0,
-        locate: true,
-        inputStream: {size:800},
-        decoder: { readers:['code_39_reader','code_128_reader'], tryHarder:true }
-      }, function(result) {
-        if (result && result.codeResult && result.codeResult.code) {
-          var code = result.codeResult.code;
-          if (code === lastCode) { if(++confirmCount >= 2){ confirmCount=0; processScan(code); } }
-          else { lastCode = code; confirmCount = 1; }
+    if (hasBD && bd) {
+      // Use native BarcodeDetector (fast, accurate)
+      bd.detect(canvas).then(function(codes) {
+        if (codes && codes.length > 0) {
+          processScan(codes[0].rawValue);
         }
-      });
+      }).catch(function(){});
+    } else if (isLocScan && window.jsQR) {
+      // Fallback for QR: jsQR
+      var img = ctx.getImageData(0, 0, w, h);
+      var qr = jsQR(img.data, w, h, {inversionAttempts: 'dontInvert'});
+      if (qr && qr.data) processScan(qr.data);
     }
-  }, 500);
+    // For barcode without BarcodeDetector: manual input only
+  }, 300);
 }
 
 function startQRScan() { /* merged */ }
