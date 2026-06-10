@@ -517,7 +517,7 @@
 </div>
 
 <!-- PANEL OPERARIO -->
-    <div class="panel" id="panel-operario" style="padding:12px 16px;">
+    <div class="panel" id="panel-operario" style="padding:12px 16px;display:none;flex-direction:column !important;justify-content:flex-start !important;align-items:stretch !important;">
       <div id="op-main" style="display:flex;flex-direction:column;gap:14px;max-width:460px;width:100%;margin:0 auto;">
 
         <!-- TÍTULO -->
@@ -1069,7 +1069,12 @@ function poblarQRZonas(){
 function showPanel(id, btn){
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active');});
-  document.getElementById('panel-'+id).classList.add('active');
+  var panel = document.getElementById('panel-'+id);
+  panel.classList.add('active');
+  // Force operario panel to start from top
+  if(id==='operario'){
+    panel.style.cssText = 'display:flex;flex-direction:column;justify-content:flex-start;align-items:center;padding:12px 16px;flex:1;overflow-y:auto;gap:0;';
+  }
   if(btn) btn.classList.add('active');
   refreshAll();
   if(id==='qr') setTimeout(renderQRPanel, 50);
