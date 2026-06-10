@@ -512,15 +512,20 @@
       <button class="modal-close" onclick="closeScanner()">×</button>
     </div>
     <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
-      <div id="scanner-viewport" style="position:relative;background:#000;border-radius:8px;overflow:hidden;">
-        <video id="scanner-video" style="width:100%;display:block;border-radius:8px;" playsinline muted autoplay></video>
+      <div id="scanner-viewport" style="position:relative;background:#000;border-radius:8px;overflow:hidden;width:100%;height:260px;">
+        <video id="scanner-video" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;border-radius:8px;" playsinline muted autoplay></video>
         <canvas id="scanner-canvas" style="display:none;"></canvas>
-        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
-          <div style="width:88%;height:35%;border:2px solid rgba(241,123,32,.9);border-radius:4px;position:relative;box-shadow:0 0 0 9999px rgba(0,0,0,.4);">
-            <div style="position:absolute;left:0;right:0;height:2px;background:rgba(241,123,32,.8);animation:scanline 1.5s ease-in-out infinite;top:50%;"></div>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:2;">
+          <div style="width:88%;height:38%;border:2px solid rgba(241,123,32,.95);border-radius:4px;position:relative;box-shadow:0 0 0 9999px rgba(0,0,0,.45);">
+            <div style="position:absolute;left:0;right:0;height:2px;background:rgba(241,123,32,.85);animation:scanline 1.5s ease-in-out infinite;top:50%;"></div>
+            <!-- corners -->
+            <div style="position:absolute;top:-2px;left:-2px;width:14px;height:14px;border-top:3px solid #f17b20;border-left:3px solid #f17b20;"></div>
+            <div style="position:absolute;top:-2px;right:-2px;width:14px;height:14px;border-top:3px solid #f17b20;border-right:3px solid #f17b20;"></div>
+            <div style="position:absolute;bottom:-2px;left:-2px;width:14px;height:14px;border-bottom:3px solid #f17b20;border-left:3px solid #f17b20;"></div>
+            <div style="position:absolute;bottom:-2px;right:-2px;width:14px;height:14px;border-bottom:3px solid #f17b20;border-right:3px solid #f17b20;"></div>
           </div>
         </div>
-        <div id="scanner-cam-msg" style="position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.7);">Iniciando cámara...</div>
+        <div id="scanner-cam-msg" style="position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.8);z-index:3;text-shadow:0 1px 2px rgba(0,0,0,.8);">Iniciando cámara...</div>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:10px;">
         <div class="text-sm" style="margin-bottom:6px;">O ingresá / escaneá con lector USB (enfocá acá):</div>
