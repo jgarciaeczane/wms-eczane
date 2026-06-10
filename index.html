@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- WMS Eczane v8 -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -512,7 +513,7 @@
     </div>
     <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
       <div id="scanner-viewport" style="position:relative;background:#000;border-radius:8px;overflow:hidden;width:100%;height:260px;">
-        <video id="scanner-video" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;border-radius:8px;" playsinline muted autoplay></video>
+        <video id="scanner-video" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;border-radius:8px;z-index:1;" playsinline muted autoplay></video>
         <canvas id="scanner-canvas" style="display:none;"></canvas>
         <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:2;">
           <div style="width:88%;height:38%;border:2px solid rgba(241,123,32,.95);border-radius:4px;position:relative;box-shadow:0 0 0 9999px rgba(0,0,0,.45);">
@@ -525,7 +526,7 @@
           </div>
         </div>
         <div id="scanner-cam-msg" style="position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.8);z-index:3;text-shadow:0 1px 2px rgba(0,0,0,.8);">Iniciando cámara...</div>
-      <div id="scanner-format-msg" style="position:absolute;top:6px;left:0;right:0;text-align:center;font-size:10px;color:rgba(255,255,0,.9);z-index:3;padding:0 8px;"></div>
+
       </div>
       <div style="border-top:1px solid var(--border);padding-top:10px;">
         <div class="text-sm" style="margin-bottom:6px;">O ingresá / escaneá con lector USB (enfocá acá):</div>
@@ -643,9 +644,17 @@ function startCamera() {
   })
   .then(function(stream) {
     scanStream = stream;
+    video.style.display = 'block';
+    video.style.zIndex = '1';
     video.srcObject = stream;
-    video.play().catch(function(){});
-    msg.textContent = isLocScan ? 'Apuntá al QR' : 'Apuntá al código de barras';
+    video.setAttribute('playsinline', '');
+    video.muted = true;
+    video.play().then(function(){
+      msg.textContent = isLocScan ? 'Apuntá al QR' : 'Apuntá al código de barras';
+    }).catch(function(e){
+      console.log('play error:', e);
+      msg.textContent = isLocScan ? 'Apuntá al QR' : 'Apuntá al código de barras';
+    });
     startFrameScan(isLocScan);
   })
   .catch(function(e) {
@@ -667,9 +676,18 @@ function startFrameScan(isLocScan) {
       if (isLocScan) {
         bd = new BarcodeDetector({formats: ['qr_code']});
       } else {
-        bd = new BarcodeDetector({formats: ['code_39', 'code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'data_matrix']});
+        // Code39 and Code128 ONLY — no EAN/UPC which conflict with Code39 numeric content
+        bd = new BarcodeDetector({formats: ['code_39', 'code_128']});
       }
-    } catch(e) { hasBD = false; }
+    } catch(e) {
+      // code_39 might not be listed — try getting supported formats
+      try {
+        BarcodeDetector.getSupportedFormats().then(function(fmts) {
+          var barFmts = fmts.filter(function(f){ return f !== 'qr_code' && f !== 'ean_13' && f !== 'ean_8' && f !== 'upc_a' && f !== 'upc_e'; });
+          if(barFmts.length) bd = new BarcodeDetector({formats: barFmts});
+        });
+      } catch(e2) { hasBD = false; }
+    }
   }
 
   scanInterval = setInterval(function() {
