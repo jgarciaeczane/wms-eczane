@@ -1090,77 +1090,87 @@ function printQRs(){
   var codes = Array.from(selectedQRs).sort();
 
   getImageDims('data:image/png;base64,'+ECZANE_LOGO_B64, function(logoNatW, logoNatH){
-    var logoRatio = logoNatH / logoNatW;
+    var logoRatio = logoNatH / logoNatW; // height/width
 
-    // ===== Label geometry (mm), all in jsPDF's native top-left coordinate system =====
+    // ===== Fixed label geometry in mm (jsPDF top-left origin) =====
     var PAGE_W = 120, PAGE_H = 60;
     var borderInset = 2;
     var cornerRadius = 2;
     var bgZonePad = 3;
     var arrowZoneW = 18;
     var leftOuterPad = 6;
+    var rightPadOfLeftZone = 3;
 
-    var qrSize = PAGE_H - 2*borderInset - 2*bgZonePad;
+    var qrSize = PAGE_H - 2*borderInset - 2*bgZonePad; // 50mm
     var qrZoneW = qrSize;
     var leftZoneW = PAGE_W - qrZoneW - arrowZoneW - bgZonePad;
+    var contentW = leftZoneW - leftOuterPad - rightPadOfLeftZone;
 
-    var contentXStart = leftOuterPad;
-    var contentW = leftZoneW - leftOuterPad - 3;
-    var logoW = contentW;
-    var logoH = logoW * logoRatio;
-    var gapLogoCode = 4;
+    // Logo: fixed height (not full content width) so it never collides with code text
+    var logoH = 11; // mm, fixed
+    var logoW = logoH / logoRatio; // width = height / (h/w) = height * (w/h)... wait ratio=h/w so w = h/ratio
+    if(logoW > contentW){ logoW = contentW; logoH = logoW * logoRatio; }
 
-    function fitFontSize(text, maxW){
-      var fs = 22;
+    var gapLogoCode = 3;
+    var codeFontPt = 16; // pt, fixed reasonable size — will shrink only if needed
+
+    var doc = new jspdf.jsPDF({unit:'mm', format:[PAGE_W, PAGE_H], orientation:'landscape'});
+
+    function fitCodeFontSize(text, maxWmm){
+      var fs = codeFontPt;
+      doc.setFont('courier', 'bold');
       while(fs > 6){
-        var wMm = text.length * fs * 0.6 * 0.3528;
-        if(wMm <= maxW) break;
+        doc.setFontSize(fs);
+        var wMm = doc.getTextWidth(text);
+        if(wMm <= maxWmm) break;
         fs -= 0.5;
       }
       return fs;
     }
 
-    var doc = new jspdf.jsPDF({unit:'mm', format:[PAGE_W, PAGE_H], orientation:'landscape'});
-
     function drawLabel(code, dir, qrDataUrl, isFirst){
       if(!isFirst) doc.addPage([PAGE_W, PAGE_H], 'landscape');
 
-      // Card border
+      // 1) Card border
       doc.setDrawColor(0, 84, 128);
       doc.setLineWidth(0.42);
       doc.roundedRect(borderInset, borderInset, PAGE_W-2*borderInset, PAGE_H-2*borderInset, cornerRadius, cornerRadius, 'S');
 
-      // Light-bg square (QR zone)
+      // 2) Light-bg square (drawn BEFORE the QR image so QR sits on top)
       var bgX = PAGE_W - borderInset - bgZonePad - qrZoneW;
       var bgY = borderInset + bgZonePad;
       doc.setFillColor(244, 248, 251);
       doc.roundedRect(bgX, bgY, qrZoneW, qrSize, cornerRadius*0.5, cornerRadius*0.5, 'F');
 
-      // QR image
+      // 3) QR image on top of the bg square, exact same size/position
       doc.addImage(qrDataUrl, 'PNG', bgX, bgY, qrZoneW, qrSize);
 
-      // Logo + code, vertically centered as a block
-      var fs = fitFontSize(code, contentW);
-      var codeTextH = fs * 0.3528;
-      var blockH = logoH + gapLogoCode + codeTextH;
-      var logoY = (PAGE_H - blockH) / 2;
-
-      doc.addImage('data:image/png;base64,'+ECZANE_LOGO_B64, 'PNG', contentXStart, logoY, logoW, logoH);
-
+      // 4) Code font size that fits within contentW
+      var fs = fitCodeFontSize(code, contentW);
       doc.setFont('courier', 'bold');
-      doc.setFontSize(fs * 2.834);
-      doc.setTextColor(0, 84, 128);
-      var codeBaselineY = logoY + logoH + gapLogoCode + codeTextH*0.8;
-      doc.text(code, contentXStart + contentW/2, codeBaselineY, {align:'center', charSpace:0.5});
+      doc.setFontSize(fs);
+      var codeTextH = fs * 0.3528; // pt->mm approx for cap height
 
-      // Arrow (top-left coordinate system: y=0 is top of page)
+      // 5) Logo + code block, vertically centered together
+      var blockH = logoH + gapLogoCode + codeTextH;
+      var blockTopY = (PAGE_H - blockH) / 2;
+      var logoY = blockTopY;
+      var logoX = leftOuterPad;
+
+      doc.addImage('data:image/png;base64,'+ECZANE_LOGO_B64, 'PNG', logoX, logoY, logoW, logoH);
+
+      doc.setTextColor(0, 84, 128);
+      var codeBaselineY = logoY + logoH + gapLogoCode + codeTextH;
+      // Left-align code at same X as logo (avoids any center-align width estimation issues)
+      doc.text(code, logoX, codeBaselineY, {align:'left', charSpace:0.3});
+
+      // 6) Arrow
       if(dir !== 'none'){
         var arrowXCenter = leftZoneW + arrowZoneW/2;
         var arrowW = 7, arrowMargin = 6;
         var arrowH = PAGE_H - 2*arrowMargin;
         var headH = arrowH * 0.40, shaftW = arrowW * 0.4;
 
-        // In top-left coords: "up" visually means tip near y=arrowMargin (top), base near y=PAGE_H-arrowMargin (bottom)
         var tipY, baseY, headBaseY;
         if(dir === 'up'){
           tipY = arrowMargin; baseY = PAGE_H - arrowMargin; headBaseY = tipY + headH;
@@ -1186,7 +1196,6 @@ function printQRs(){
       }
     }
 
-    // Process codes sequentially to guarantee correct page order
     var idx = 0;
     function next(){
       if(idx >= codes.length){
