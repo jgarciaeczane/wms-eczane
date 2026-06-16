@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   /* ── ECZANE BRAND SYSTEM ───────────────────────────────────────
      Azul   #005480   Naranja  #f17b20   Gris  #909295
@@ -1075,68 +1076,135 @@ function makeQRCanvasDataURL(code, size, cb){
   }, 30);
 }
 
-function printQRs(){
-  if(!selectedQRs.size){showToast('Seleccioná al menos una ubicación','error');return;}
-  var overlay = document.getElementById('print-overlay');
-  var content = document.getElementById('print-content');
-  content.innerHTML = '<div id="label-sheet" style="display:flex;flex-wrap:wrap;gap:16px;justify-content:flex-start;"></div>';
-  var sheet = document.getElementById('label-sheet');
+// Get natural pixel dimensions of a base64 image (for aspect ratio calc)
+function getImageDims(dataUrl, cb){
+  var img = new Image();
+  img.onload = function(){ cb(img.naturalWidth, img.naturalHeight); };
+  img.src = dataUrl;
+}
 
-  // Label dimensions: 120x60mm @150dpi
-  var W = 709, H = 354, PAD = 8;
-  var qr = H - 4 - PAD*2;       // 326
-  var qrZoneW = qr + PAD*2;     // 342
-  var ah = 280, aw = 60;        // flecha
-  var arrowZoneW = aw + 24;     // 84
-  var leftZoneW = W - qrZoneW - arrowZoneW; // 283
-  var leftInner = leftZoneW - 40;
-  var cf = Math.floor((leftInner - 20) / 6.6);
-  var logoW = leftInner, logoH = Math.round(logoW/2.38);
+function printQRs(){
+  if(!selectedQRs.size){showToast('Seleccion\u00e1 al menos una ubicaci\u00f3n','error');return;}
+  showToast('Generando PDF de etiquetas...', 'info');
 
   var codes = Array.from(selectedQRs).sort();
-  var pending = codes.length;
 
-  codes.forEach(function(code){
-    var dir = qrArrowDirections[code] || 'none';
-    makeQRCanvasDataURL(code, qr, function(qrDataUrl){
-      var label = document.createElement('div');
-      label.className = 'print-label';
-      label.style.cssText = 'width:'+W+'px;height:'+H+'px;border:2px solid #005480;border-radius:10px;display:flex;align-items:stretch;overflow:hidden;background:#fff;page-break-inside:avoid;';
+  getImageDims('data:image/png;base64,'+ECZANE_LOGO_B64, function(logoNatW, logoNatH){
+    var logoRatio = logoNatH / logoNatW;
 
-      var leftZone = document.createElement('div');
-      leftZone.style.cssText = 'width:'+leftZoneW+'px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 20px;gap:12px;overflow:hidden;';
-      var logoImg = document.createElement('img');
-      logoImg.src = 'data:image/png;base64,'+ECZANE_LOGO_B64;
-      logoImg.style.cssText = 'width:'+logoW+'px;max-width:100%;height:auto;display:block;';
-      var codeSpan = document.createElement('span');
-      codeSpan.textContent = code;
-      codeSpan.style.cssText = "font-family:'Courier New',monospace;font-weight:700;color:#005480;letter-spacing:2px;white-space:nowrap;font-size:"+cf+"px;max-width:100%;";
-      leftZone.appendChild(logoImg);
-      leftZone.appendChild(codeSpan);
+    // ===== Label geometry (mm), all in jsPDF's native top-left coordinate system =====
+    var PAGE_W = 120, PAGE_H = 60;
+    var borderInset = 2;
+    var cornerRadius = 2;
+    var bgZonePad = 3;
+    var arrowZoneW = 18;
+    var leftOuterPad = 6;
 
-      var arrowZone = document.createElement('div');
-      arrowZone.style.cssText = 'width:'+arrowZoneW+'px;flex-shrink:0;display:flex;align-items:center;justify-content:center;';
-      arrowZone.innerHTML = makeArrowSVG(dir, aw, ah);
+    var qrSize = PAGE_H - 2*borderInset - 2*bgZonePad;
+    var qrZoneW = qrSize;
+    var leftZoneW = PAGE_W - qrZoneW - arrowZoneW - bgZonePad;
 
-      var qrZone = document.createElement('div');
-      qrZone.style.cssText = 'width:'+qrZoneW+'px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#f4f8fb;padding:'+PAD+'px;';
-      var qrImg = document.createElement('img');
-      qrImg.src = qrDataUrl;
-      qrImg.style.cssText = 'width:'+qr+'px;height:'+qr+'px;display:block;';
-      qrZone.appendChild(qrImg);
+    var contentXStart = leftOuterPad;
+    var contentW = leftZoneW - leftOuterPad - 3;
+    var logoW = contentW;
+    var logoH = logoW * logoRatio;
+    var gapLogoCode = 4;
 
-      label.appendChild(leftZone);
-      label.appendChild(arrowZone);
-      label.appendChild(qrZone);
-      sheet.appendChild(label);
+    function fitFontSize(text, maxW){
+      var fs = 22;
+      while(fs > 6){
+        var wMm = text.length * fs * 0.6 * 0.3528;
+        if(wMm <= maxW) break;
+        fs -= 0.5;
+      }
+      return fs;
+    }
 
-      pending--;
-    });
+    var doc = new jspdf.jsPDF({unit:'mm', format:[PAGE_W, PAGE_H], orientation:'landscape'});
+
+    function drawLabel(code, dir, qrDataUrl, isFirst){
+      if(!isFirst) doc.addPage([PAGE_W, PAGE_H], 'landscape');
+
+      // Card border
+      doc.setDrawColor(0, 84, 128);
+      doc.setLineWidth(0.42);
+      doc.roundedRect(borderInset, borderInset, PAGE_W-2*borderInset, PAGE_H-2*borderInset, cornerRadius, cornerRadius, 'S');
+
+      // Light-bg square (QR zone)
+      var bgX = PAGE_W - borderInset - bgZonePad - qrZoneW;
+      var bgY = borderInset + bgZonePad;
+      doc.setFillColor(244, 248, 251);
+      doc.roundedRect(bgX, bgY, qrZoneW, qrSize, cornerRadius*0.5, cornerRadius*0.5, 'F');
+
+      // QR image
+      doc.addImage(qrDataUrl, 'PNG', bgX, bgY, qrZoneW, qrSize);
+
+      // Logo + code, vertically centered as a block
+      var fs = fitFontSize(code, contentW);
+      var codeTextH = fs * 0.3528;
+      var blockH = logoH + gapLogoCode + codeTextH;
+      var logoY = (PAGE_H - blockH) / 2;
+
+      doc.addImage('data:image/png;base64,'+ECZANE_LOGO_B64, 'PNG', contentXStart, logoY, logoW, logoH);
+
+      doc.setFont('courier', 'bold');
+      doc.setFontSize(fs * 2.834);
+      doc.setTextColor(0, 84, 128);
+      var codeBaselineY = logoY + logoH + gapLogoCode + codeTextH*0.8;
+      doc.text(code, contentXStart + contentW/2, codeBaselineY, {align:'center', charSpace:0.5});
+
+      // Arrow (top-left coordinate system: y=0 is top of page)
+      if(dir !== 'none'){
+        var arrowXCenter = leftZoneW + arrowZoneW/2;
+        var arrowW = 7, arrowMargin = 6;
+        var arrowH = PAGE_H - 2*arrowMargin;
+        var headH = arrowH * 0.40, shaftW = arrowW * 0.4;
+
+        // In top-left coords: "up" visually means tip near y=arrowMargin (top), base near y=PAGE_H-arrowMargin (bottom)
+        var tipY, baseY, headBaseY;
+        if(dir === 'up'){
+          tipY = arrowMargin; baseY = PAGE_H - arrowMargin; headBaseY = tipY + headH;
+        } else {
+          tipY = PAGE_H - arrowMargin; baseY = arrowMargin; headBaseY = tipY - headH;
+        }
+
+        doc.setFillColor(0, 84, 128);
+        var pts = [
+          [arrowXCenter, tipY],
+          [arrowXCenter + arrowW/2, headBaseY],
+          [arrowXCenter + shaftW/2, headBaseY],
+          [arrowXCenter + shaftW/2, baseY],
+          [arrowXCenter - shaftW/2, baseY],
+          [arrowXCenter - shaftW/2, headBaseY],
+          [arrowXCenter - arrowW/2, headBaseY]
+        ];
+        var lineDeltas = [];
+        for(var i=1;i<pts.length;i++){
+          lineDeltas.push([pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]]);
+        }
+        doc.lines(lineDeltas, pts[0][0], pts[0][1], [1,1], 'F', true);
+      }
+    }
+
+    // Process codes sequentially to guarantee correct page order
+    var idx = 0;
+    function next(){
+      if(idx >= codes.length){
+        doc.save('etiquetas_wms_eczane.pdf');
+        showToast(codes.length + ' etiqueta(s) generadas en PDF', 'success');
+        return;
+      }
+      var code = codes[idx];
+      var dir = qrArrowDirections[code] || 'none';
+      makeQRCanvasDataURL(code, 400, function(qrDataUrl){
+        drawLabel(code, dir, qrDataUrl, idx === 0);
+        idx++;
+        next();
+      });
+    }
+    next();
   });
-
-  overlay.style.display = 'block';
 }
-function closePrint(){document.getElementById('print-overlay').style.display='none';}
 
 function poblarQRZonas(){
   var sel = document.getElementById('qr-filter-zona');
