@@ -404,6 +404,7 @@
             <div style="padding:8px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;background:var(--surface2);">
               <button id="map-edit-btn" class="btn btn-sm btn-primary" onclick="toggleMapEdit()" style="font-size:12px;">✎ Editar posiciones</button>
               <button class="btn btn-sm btn-ghost" onclick="resetMapPositions()" style="font-size:12px;">&#8635; Reiniciar layout</button>
+              <button class="btn btn-sm btn-ghost" onclick="fixMapOverlaps()" style="font-size:12px;" title="Resuelve celdas superpuestas">⚡ Resolver superposiciones</button>
               <span id="map-edit-hint" style="font-size:11px;color:var(--text2);display:none;">Arrastrá celdas · Clic en vacío = pasillo · Clic en pasillo = eliminar</span>
             </div>
             <div class="map-legend">
@@ -1364,8 +1365,8 @@ function renderMapa() {
     locs.forEach(function(l) {
       if (!positions[l.code]) {
         positions[l.code] = {
-          x: (autoIdx % 20) * (CELL_W + CELL_GAP) + 16,
-          y: Math.floor(autoIdx / 20) * (CELL_H + CELL_GAP) + 16
+          x: (autoIdx % 10) * (CELL_W + CELL_GAP) + 16,
+          y: Math.floor(autoIdx / 10) * (CELL_H + CELL_GAP) + 16
         };
         autoIdx++;
       } else {
@@ -1383,7 +1384,7 @@ function renderMapa() {
       if ((a.y + CELL_H + 16) > maxY) maxY = a.y + CELL_H + 16;
       if ((a.x + CELL_W + 16) > maxX) maxX = a.x + CELL_W + 16;
     });
-    var canvasW = Math.max(maxX || 0, 20*(CELL_W+CELL_GAP)+32);
+    var canvasW = Math.max(maxX || 0, 10*(CELL_W+CELL_GAP)+32);
     var canvasH = Math.max(maxY, 10*(CELL_H+CELL_GAP)+32);
 
     // Build section
@@ -1543,21 +1544,53 @@ function makeDragHandler(cell) {
       var curScrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
       var nx = origLeft + ev.clientX - startX + (curScrollLeft - startScrollLeft);
       var ny = origTop + ev.clientY - startY + (curScrollTop - startScrollTop);
-      // Snap to grid
-      // Snap to nearest grid position (16px offset from canvas edge)
-      var snapX = Math.round((nx - 16) / (CELL_W + CELL_GAP));
-      var snapY = Math.round((ny - 16) / (CELL_H + CELL_GAP));
-      nx = Math.max(0, snapX) * (CELL_W + CELL_GAP) + 16;
-      ny = Math.max(0, snapY) * (CELL_H + CELL_GAP) + 16;
+      nx = Math.max(16, nx); ny = Math.max(16, ny);
       cell.style.left = nx + 'px'; cell.style.top = ny + 'px';
-      // Expand canvas if needed
-      var neededH = ny + CELL_H + 16;
-      var neededW = nx + CELL_W + 16;
-      if (neededH > parseInt(canvas.style.minHeight||0)) canvas.style.minHeight = neededH + 'px';
-      if (neededW > parseInt(canvas.style.minWidth||0)) canvas.style.minWidth = neededW + 'px';
     }
     function onUp() {
-      cell.style.zIndex=''; cell.style.opacity=''; cell.style.cursor='grab';
+      // Snap to grid on drop
+      var nx = parseInt(cell.style.left)||16;
+      var ny = parseInt(cell.style.top)||16;
+      var snapX = Math.round((nx - 16) / (CELL_W + CELL_GAP));
+      var snapY = Math.round((ny - 16) / (CELL_H + CELL_GAP));
+      snapX = Math.max(0, snapX);
+      snapY = Math.max(0, snapY);
+
+      // Build occupied slots map (excluding this cell)
+      var siblings = canvas.querySelectorAll('.map-cell:not(.map-aisle)');
+      var occupied = {};
+      siblings.forEach(function(s){
+        if(s === cell) return;
+        var key = (parseInt(s.style.left)||0) + ',' + (parseInt(s.style.top)||0);
+        occupied[key] = true;
+      });
+
+      // Spiral search for nearest free slot
+      var finalX = 16, finalY = 16;
+      var found = false;
+      for(var r=0; r<=30 && !found; r++){
+        for(var dx=-r; dx<=r && !found; dx++){
+          for(var dy=-r; dy<=r && !found; dy++){
+            if(Math.abs(dx)!==r && Math.abs(dy)!==r) continue;
+            var tx = Math.max(0,snapX+dx)*(CELL_W+CELL_GAP)+16;
+            var ty = Math.max(0,snapY+dy)*(CELL_H+CELL_GAP)+16;
+            if(!occupied[tx+','+ty]){ finalX=tx; finalY=ty; found=true; }
+          }
+        }
+      }
+
+      cell.style.left = finalX + 'px';
+      cell.style.top = finalY + 'px';
+      cell.style.zIndex = '';
+      cell.style.opacity = '';
+      cell.style.cursor = 'grab';
+
+      // Expand canvas if needed
+      var neededH = finalY + CELL_H + 32;
+      var neededW = finalX + CELL_W + 32;
+      if (neededH > parseInt(canvas.style.minHeight||0)) canvas.style.minHeight = neededH + 'px';
+      if (neededW > parseInt(canvas.style.minWidth||0)) canvas.style.minWidth = neededW + 'px';
+
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     }
@@ -1587,6 +1620,46 @@ function removeAisle(zona, idx) {
   saveMapData(zona, data);
   renderMapa();
   activateEditMode();
+}
+
+function fixMapOverlaps() {
+  document.querySelectorAll('.map-zona-section').forEach(function(section) {
+    var cells = Array.from(section.querySelectorAll('.map-cell:not(.map-aisle)'));
+    var occupied = {};
+    cells.forEach(function(cell) {
+      var x = parseInt(cell.style.left)||16;
+      var y = parseInt(cell.style.top)||16;
+      // Snap to nearest grid first
+      var snapX = Math.max(0, Math.round((x-16)/(CELL_W+CELL_GAP)));
+      var snapY = Math.max(0, Math.round((y-16)/(CELL_H+CELL_GAP)));
+      var key = snapX+','+snapY;
+      if (!occupied[key]) {
+        occupied[key] = true;
+        cell.style.left = snapX*(CELL_W+CELL_GAP)+16+'px';
+        cell.style.top  = snapY*(CELL_H+CELL_GAP)+16+'px';
+      } else {
+        // Find nearest free slot
+        var found = false;
+        for (var r=1; r<=50&&!found; r++) {
+          for (var dx=-r; dx<=r&&!found; dx++) {
+            for (var dy=-r; dy<=r&&!found; dy++) {
+              if (Math.abs(dx)!==r&&Math.abs(dy)!==r) continue;
+              var tx=Math.max(0,snapX+dx)+','+Math.max(0,snapY+dy);
+              if (!occupied[tx]) {
+                occupied[tx]=true;
+                var fx=Math.max(0,snapX+dx)*(CELL_W+CELL_GAP)+16;
+                var fy=Math.max(0,snapY+dy)*(CELL_H+CELL_GAP)+16;
+                cell.style.left=fx+'px'; cell.style.top=fy+'px';
+                found=true;
+              }
+            }
+          }
+        }
+      }
+    });
+  });
+  saveAllMapPositions();
+  showToast('Superposiciones resueltas', 'success');
 }
 
 function saveAllMapPositions() {
