@@ -474,7 +474,8 @@
           Generador de QR para Ubicaciones
           <div style="display:flex;gap:8px;">
             <button class="btn btn-cyan btn-sm" onclick="selectAllQR()">Seleccionar todo</button>
-            <button class="btn btn-primary btn-sm" onclick="printQRs()">🖨 Imprimir selección</button>
+            <button class="btn btn-primary btn-sm" onclick="printQRs('rack')" title="60x120mm — con logo, código y flecha">🖨 Etiqueta Rack</button>
+            <button class="btn btn-primary btn-sm" onclick="printQRs('barral')" title="60x80mm — QR grande, código abajo, flecha">🖨 Etiqueta Barral</button>
           </div>
         </div>
         <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex-shrink:0;">
@@ -1089,7 +1090,7 @@ function getImageDims(dataUrl, cb){
   img.src = dataUrl;
 }
 
-function printQRs(){
+function printQRs(labelType){
   if(!selectedQRs.size){showToast('Seleccion\u00e1 al menos una ubicaci\u00f3n','error');return;}
   showToast('Generando PDF de etiquetas...', 'info');
 
@@ -1098,27 +1099,12 @@ function printQRs(){
   getImageDims('data:image/png;base64,'+ECZANE_LOGO_B64, function(logoNatW, logoNatH){
     var logoRatio = logoNatH / logoNatW; // height/width
 
-    // ===== Fixed label geometry in mm (jsPDF top-left origin) =====
-    var PAGE_W = 120, PAGE_H = 60;
-    var borderInset = 2;
-    var cornerRadius = 2;
-    var bgZonePad = 3;
-    var arrowZoneW = 18;
-    var leftOuterPad = 6;
-    var rightPadOfLeftZone = 3;
-
-    var qrSize = PAGE_H - 2*borderInset - 2*bgZonePad; // 50mm
-    var qrZoneW = qrSize;
-    var leftZoneW = PAGE_W - qrZoneW - arrowZoneW - bgZonePad;
-    var contentW = leftZoneW - leftOuterPad - rightPadOfLeftZone;
-
-    // Logo: fixed height (not full content width) so it never collides with code text
-    var logoH = 11; // mm, fixed
-    var logoW = logoH / logoRatio; // width = height / (h/w) = height * (w/h)... wait ratio=h/w so w = h/ratio
-    if(logoW > contentW){ logoW = contentW; logoH = logoW * logoRatio; }
-
-    var gapLogoCode = 3;
-    var codeFontPt = 16; // pt, fixed reasonable size — will shrink only if needed
+    // ===== Label geometry — two types =====
+    var isRack = (labelType !== 'barral');
+    var PAGE_W = isRack ? 120 : 80, PAGE_H = 60;
+    var borderInset = 2, cornerRadius = 2, bgZonePad = 3, bgPad = 3;
+    var arrowZoneW = isRack ? 18 : 12;
+    var codeFontPt = isRack ? 16 : 14;
 
     var doc = new jspdf.jsPDF({unit:'mm', format:[PAGE_W, PAGE_H], orientation:'landscape'});
 
@@ -1137,42 +1123,53 @@ function printQRs(){
     function drawLabel(code, dir, qrDataUrl, isFirst){
       if(!isFirst) doc.addPage([PAGE_W, PAGE_H], 'landscape');
 
-      // 1) Card border
       doc.setDrawColor(0, 84, 128);
       doc.setLineWidth(0.42);
       doc.roundedRect(borderInset, borderInset, PAGE_W-2*borderInset, PAGE_H-2*borderInset, cornerRadius, cornerRadius, 'S');
 
-      // 2) Light-bg square (drawn BEFORE the QR image so QR sits on top)
-      var bgX = PAGE_W - borderInset - bgZonePad - qrZoneW;
-      var bgY = borderInset + bgZonePad;
-      doc.setFillColor(244, 248, 251);
-      doc.roundedRect(bgX, bgY, qrZoneW, qrSize, cornerRadius*0.5, cornerRadius*0.5, 'F');
+      if(isRack){
+        // ── RACK 120x60mm: logo+code left | arrow | QR right ──
+        var qrSize = PAGE_H - 2*borderInset - 2*bgZonePad;
+        var qrZoneW = qrSize;
+        var leftZoneW = PAGE_W - qrZoneW - arrowZoneW - bgZonePad;
+        var contentW = leftZoneW - 6 - 3;
+        var bgX = PAGE_W - borderInset - bgZonePad - qrZoneW;
+        var bgY = borderInset + bgZonePad;
+        doc.setFillColor(244, 248, 251);
+        doc.roundedRect(bgX, bgY, qrZoneW, qrSize, cornerRadius*0.5, cornerRadius*0.5, 'F');
+        doc.addImage(qrDataUrl, 'PNG', bgX, bgY, qrZoneW, qrSize);
 
-      // 3) QR image on top of the bg square, exact same size/position
-      doc.addImage(qrDataUrl, 'PNG', bgX, bgY, qrZoneW, qrSize);
+        // Logo
+        var logoH = 11, logoW = logoH / logoRatio;
+        if(logoW > contentW){ logoW = contentW; logoH = logoW * logoRatio; }
+        var fs = fitCodeFontSize(code, contentW);
+        doc.setFont('courier','bold'); doc.setFontSize(fs);
+        var codeH = fs * 0.3528;
+        var blockH = logoH + 3 + codeH;
+        var logoY = (PAGE_H - blockH) / 2;
+        doc.addImage('data:image/png;base64,'+ECZANE_LOGO_B64, 'PNG', 6, logoY, logoW, logoH);
+        doc.setTextColor(0,84,128);
+        doc.text(code, 6, logoY + logoH + 3 + codeH, {align:'left', charSpace:0.3});
 
-      // 4) Code font size that fits within contentW
-      var fs = fitCodeFontSize(code, contentW);
-      doc.setFont('courier', 'bold');
-      doc.setFontSize(fs);
-      var codeTextH = fs * 0.3528; // pt->mm approx for cap height
-
-      // 5) Logo + code block, vertically centered together
-      var blockH = logoH + gapLogoCode + codeTextH;
-      var blockTopY = (PAGE_H - blockH) / 2;
-      var logoY = blockTopY;
-      var logoX = leftOuterPad;
-
-      doc.addImage('data:image/png;base64,'+ECZANE_LOGO_B64, 'PNG', logoX, logoY, logoW, logoH);
-
-      doc.setTextColor(0, 84, 128);
-      var codeBaselineY = logoY + logoH + gapLogoCode + codeTextH;
-      // Left-align code at same X as logo (avoids any center-align width estimation issues)
-      doc.text(code, logoX, codeBaselineY, {align:'left', charSpace:0.3});
+      } else {
+        // ── BARRAL 80x60mm: arrow left | QR top | code bottom ──
+        var qrZoneX = borderInset + arrowZoneW;
+        var qrZoneW2 = PAGE_W - borderInset - arrowZoneW - borderInset;
+        doc.setFont('courier','bold'); doc.setFontSize(codeFontPt);
+        var codeH2 = codeFontPt * 0.3528;
+        var qrSize2 = PAGE_H - 2*borderInset - 2 - codeH2 - 2;
+        var qrX2 = qrZoneX + (qrZoneW2 - qrSize2)/2;
+        var qrY2 = borderInset;
+        doc.setFillColor(244,248,251);
+        doc.roundedRect(qrX2-bgPad, qrY2, qrSize2+bgPad*2, qrSize2+bgPad*2, cornerRadius*0.5, cornerRadius*0.5, 'F');
+        doc.addImage(qrDataUrl, 'PNG', qrX2, qrY2, qrSize2, qrSize2);
+        doc.setTextColor(0,84,128);
+        doc.text(code, qrZoneX + qrZoneW2/2, PAGE_H - borderInset - 1, {align:'center', charSpace:0.3});
+      }
 
       // 6) Arrow
       if(dir !== 'none'){
-        var arrowXCenter = leftZoneW + arrowZoneW/2;
+        var arrowXCenter = borderInset + arrowZoneW/2;
         var arrowW = 7, arrowMargin = 6;
         var arrowH = PAGE_H - 2*arrowMargin;
         var headH = arrowH * 0.40, shaftW = arrowW * 0.4;
@@ -1205,8 +1202,8 @@ function printQRs(){
     var idx = 0;
     function next(){
       if(idx >= codes.length){
-        doc.save('etiquetas_wms_eczane.pdf');
-        showToast(codes.length + ' etiqueta(s) generadas en PDF', 'success');
+        doc.save('etiquetas_wms_' + (isRack ? 'rack' : 'barral') + '.pdf');
+        showToast(codes.length + ' etiqueta(s) ' + (isRack ? 'rack 120x60mm' : 'barral 80x60mm') + ' generadas', 'success');
         return;
       }
       var code = codes[idx];
