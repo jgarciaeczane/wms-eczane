@@ -400,11 +400,11 @@
       <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;min-height:0;height:100%;">
         <div>
           <div class="card">
-            <div class="card-header">Mapa del Depósito<span class="text-sm text-mono" id="map-total-locs"></span>
-              <div style="display:flex;gap:8px;margin-left:auto;">
-                <button id="map-edit-btn" class="btn btn-sm btn-ghost" onclick="toggleMapEdit()" style="font-size:12px;">✎ Editar posiciones</button>
-                <button class="btn btn-sm btn-ghost" onclick="resetMapPositions()" style="font-size:12px;" title="Volver al layout automático">↺ Reiniciar</button>
-              </div>
+            <div class="card-header">Mapa del Depósito<span class="text-sm text-mono" id="map-total-locs"></span></div>
+            <div style="padding:8px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;background:var(--surface2);">
+              <button id="map-edit-btn" class="btn btn-sm btn-primary" onclick="toggleMapEdit()" style="font-size:12px;">✎ Editar posiciones</button>
+              <button class="btn btn-sm btn-ghost" onclick="resetMapPositions()" style="font-size:12px;">&#8635; Reiniciar layout</button>
+              <span id="map-edit-hint" style="font-size:11px;color:var(--text2);display:none;">Arrastrá celdas · Clic en vacío = pasillo · Clic en pasillo = eliminar</span>
             </div>
             <div class="map-legend">
               <div class="legend-item"><div class="legend-dot" style="background:var(--gray-light);border-color:var(--border);"></div>Libre</div>
@@ -1470,13 +1470,16 @@ function renderMapa() {
 function toggleMapEdit() {
   _mapEditMode = !_mapEditMode;
   var btn = document.getElementById('map-edit-btn');
+  var hint = document.getElementById('map-edit-hint');
   if (_mapEditMode) {
     btn.textContent = '✓ Guardar posiciones';
-    btn.style.cssText = 'background:var(--success);color:#fff;';
+    btn.style.cssText = 'background:var(--success);color:#fff;font-size:12px;';
+    if(hint) hint.style.display = 'inline';
     activateEditMode();
   } else {
     btn.textContent = '✎ Editar posiciones';
-    btn.style.cssText = '';
+    btn.style.cssText = 'font-size:12px;';
+    if(hint) hint.style.display = 'none';
     deactivateEditMode();
     saveAllMapPositions();
     showToast('Posiciones guardadas', 'success');
