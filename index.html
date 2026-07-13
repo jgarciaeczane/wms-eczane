@@ -397,7 +397,7 @@
 
     <!-- MAPA -->
     <div class="panel" id="panel-mapa">
-      <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;min-height:0;height:100%;">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;min-height:0;height:100%;">
         <div>
           <div class="card">
             <div class="card-header">Mapa del Depósito<span class="text-sm text-mono" id="map-total-locs"></span></div>
@@ -412,7 +412,7 @@
               <div class="legend-item"><div class="legend-dot" style="background:#e8f4fb;border-color:rgba(0,104,158,.4);"></div>Múltiple</div>
               <div class="legend-item"><div class="legend-dot" style="background:var(--orange-light);border-color:rgba(241,123,32,.4);"></div>Próx. vencer</div>
             </div>
-            <div id="map-container" style="overflow:auto;max-height:calc(100vh - 280px);padding-bottom:16px;"></div>
+            <div id="map-container" style="overflow:auto;max-height:calc(100vh - 280px);padding-bottom:16px;min-width:0;"></div>
           </div>
         </div>
         <div>
@@ -1533,15 +1533,22 @@ function makeDragHandler(cell) {
     var startX = e.clientX, startY = e.clientY;
     var origLeft = parseInt(cell.style.left)||0;
     var origTop = parseInt(cell.style.top)||0;
+    var scrollContainer = canvas.parentElement;
+    var startScrollLeft = scrollContainer ? scrollContainer.scrollLeft : 0;
+    var startScrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
     cell.style.zIndex = 999; cell.style.opacity = '0.85'; cell.style.cursor = 'grabbing';
 
     function onMove(ev) {
-      var nx = origLeft + ev.clientX - startX;
-      var ny = origTop + ev.clientY - startY;
+      var curScrollLeft = scrollContainer ? scrollContainer.scrollLeft : 0;
+      var curScrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
+      var nx = origLeft + ev.clientX - startX + (curScrollLeft - startScrollLeft);
+      var ny = origTop + ev.clientY - startY + (curScrollTop - startScrollTop);
       // Snap to grid
-      nx = Math.round((nx - 16) / (CELL_W + CELL_GAP)) * (CELL_W + CELL_GAP) + 16;
-      ny = Math.round((ny - 16) / (CELL_H + CELL_GAP)) * (CELL_H + CELL_GAP) + 16;
-      nx = Math.max(16, nx); ny = Math.max(16, ny);
+      // Snap to nearest grid position (16px offset from canvas edge)
+      var snapX = Math.round((nx - 16) / (CELL_W + CELL_GAP));
+      var snapY = Math.round((ny - 16) / (CELL_H + CELL_GAP));
+      nx = Math.max(0, snapX) * (CELL_W + CELL_GAP) + 16;
+      ny = Math.max(0, snapY) * (CELL_H + CELL_GAP) + 16;
       cell.style.left = nx + 'px'; cell.style.top = ny + 'px';
       // Expand canvas if needed
       var neededH = ny + CELL_H + 16;
