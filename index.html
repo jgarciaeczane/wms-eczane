@@ -1186,20 +1186,12 @@ function printQRs(labelType){
         var barrDeltas=[];
         for(var i=1;i<barrPts.length;i++) barrDeltas.push([barrPts[i][0]-barrPts[i-1][0],barrPts[i][1]-barrPts[i-1][1]]);
         doc.lines(barrDeltas, barrPts[0][0], barrPts[0][1], [1,1], 'F', true);
-        return; // arrow already drawn for barral
       }
 
-      // 6) Arrow
-      if(dir !== 'none'){
-        // rack: arrow is between left zone (logo+code) and QR zone
-        // barral: arrow is on the left edge
-        var arrowXCenter;
-        if(isRack){
-          var rackLeftZoneW = PAGE_W - (PAGE_H - 2*borderInset - 2*bgZonePad) - arrowZoneW - bgZonePad;
-          arrowXCenter = rackLeftZoneW + arrowZoneW/2;
-        } else {
-          arrowXCenter = borderInset + arrowZoneW/2;
-        }
+      // 6) Arrow — rack only (barral arrow already drawn above)
+      if(isRack && dir !== 'none'){
+        var rackLeftZoneW = PAGE_W - (PAGE_H - 2*borderInset - 2*bgZonePad) - arrowZoneW - bgZonePad;
+        var arrowXCenter = rackLeftZoneW + arrowZoneW/2;
         var arrowW = 11, arrowMargin = 6;
         var arrowH = PAGE_H - 2*arrowMargin;
         var headH = arrowH * 0.40, shaftW = arrowW * 0.4;
