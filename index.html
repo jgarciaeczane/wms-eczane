@@ -1101,7 +1101,7 @@ function printQRs(labelType){
 
     // ===== Label geometry — two types =====
     var isRack = (labelType !== 'barral');
-    var PAGE_W = isRack ? 120 : 80, PAGE_H = 60;
+    var PAGE_W = isRack ? 120 : 60, PAGE_H = 60;
     var borderInset = 2, cornerRadius = 2, bgZonePad = 3, bgPad = 3;
     var arrowZoneW = isRack ? 18 : 12;
     var codeFontPt = isRack ? 16 : 14;
@@ -1140,33 +1140,53 @@ function printQRs(labelType){
         doc.addImage(qrDataUrl, 'PNG', bgX, bgY, qrZoneW, qrSize);
 
         // Logo
-        var logoH = 11, logoW = logoH / logoRatio;
+        var logoH = 16, logoW = logoH / logoRatio;
         if(logoW > contentW){ logoW = contentW; logoH = logoW * logoRatio; }
         var fs = fitCodeFontSize(code, contentW);
         doc.setFont('courier','bold'); doc.setFontSize(fs);
         var codeH = fs * 0.3528;
         var blockH = logoH + 3 + codeH;
-        var logoY = (PAGE_H - blockH) / 2;
+        var logoY = (PAGE_H - blockH) / 2 + 12; // shift up 12mm
         doc.addImage('data:image/png;base64,'+ECZANE_LOGO_B64, 'PNG', 6, logoY, logoW, logoH);
         doc.setTextColor(0,84,128);
         doc.text(code, 6, logoY + logoH + 3 + codeH, {align:'left', charSpace:0.3});
 
       } else {
-        // ── BARRAL 80x60mm: arrow left | QR top | code bottom ──
-        var qrZoneX = borderInset + arrowZoneW;
-        var qrZoneW2 = PAGE_W - borderInset - arrowZoneW - borderInset;
-        doc.setFont('courier','bold'); doc.setFontSize(codeFontPt);
-        var codeH2 = codeFontPt * 0.3528;
-        // QR bg square: inset bgZonePad from card border on all sides, leave room for code below
-        var qrBgPad = bgZonePad; // same margin as rack (3mm from card border)
-        var qrSize2 = PAGE_H - 2*borderInset - 2*qrBgPad - 2 - codeH2;
+        // ── BARRAL 60x60mm: arrow left | QR top | code bottom ──
+        // jsPDF: Y=0 is TOP, grows downward
+        var barrArrowZoneW = 12;
+        var qrZoneX = borderInset + barrArrowZoneW;
+        var qrZoneW2 = PAGE_W - borderInset - barrArrowZoneW - borderInset; // 44mm
+        doc.setFont('courier','bold'); doc.setFontSize(14);
+        var codeH2 = 14 * 0.3528;
+        var gap = 1.5;
+        var qrBgY = borderInset + 2;
+        var qrSize2 = Math.min(qrZoneW2 - 2, PAGE_H - qrBgY - gap - (codeH2 + 2) - borderInset);
         var qrBgX = qrZoneX + (qrZoneW2 - qrSize2) / 2;
-        var qrBgY = borderInset + qrBgPad;
         doc.setFillColor(244,248,251);
         doc.roundedRect(qrBgX, qrBgY, qrSize2, qrSize2, cornerRadius*0.5, cornerRadius*0.5, 'F');
         doc.addImage(qrDataUrl, 'PNG', qrBgX, qrBgY, qrSize2, qrSize2);
+        var codeY = qrBgY + qrSize2 + gap + codeH2;
+        doc.setFontSize(14);
         doc.setTextColor(0,84,128);
-        doc.text(code, qrZoneX + qrZoneW2/2, PAGE_H - borderInset - 1, {align:'center', charSpace:0.3});
+        doc.text(code, qrZoneX + qrZoneW2/2, codeY, {align:'center', charSpace:0.3});
+        // Arrow centered in its zone
+        var barrArrowCX = borderInset + barrArrowZoneW/2;
+        var barrAW = 9, barrAH = PAGE_H - 8, barrHH = barrAH*0.4, barrSW = barrAW*0.4;
+        var barrTipY = borderInset + (dir==='up' ? 0 : barrAH);
+        var barrBaseY = borderInset + (dir==='up' ? barrAH : 0);
+        var barrHBaseY = barrTipY + (dir==='up' ? barrHH : -barrHH);
+        doc.setFillColor(0,84,128);
+        var barrPts = [
+          [barrArrowCX, barrTipY],
+          [barrArrowCX+barrAW/2, barrHBaseY],[barrArrowCX+barrSW/2, barrHBaseY],
+          [barrArrowCX+barrSW/2, barrBaseY],[barrArrowCX-barrSW/2, barrBaseY],
+          [barrArrowCX-barrSW/2, barrHBaseY],[barrArrowCX-barrAW/2, barrHBaseY]
+        ];
+        var barrDeltas=[];
+        for(var i=1;i<barrPts.length;i++) barrDeltas.push([barrPts[i][0]-barrPts[i-1][0],barrPts[i][1]-barrPts[i-1][1]]);
+        doc.lines(barrDeltas, barrPts[0][0], barrPts[0][1], [1,1], 'F', true);
+        return; // arrow already drawn for barral
       }
 
       // 6) Arrow
@@ -1180,7 +1200,7 @@ function printQRs(labelType){
         } else {
           arrowXCenter = borderInset + arrowZoneW/2;
         }
-        var arrowW = 7, arrowMargin = 6;
+        var arrowW = 11, arrowMargin = 6;
         var arrowH = PAGE_H - 2*arrowMargin;
         var headH = arrowH * 0.40, shaftW = arrowW * 0.4;
 
@@ -1212,7 +1232,7 @@ function printQRs(labelType){
     var idx = 0;
     function next(){
       if(idx >= codes.length){
-        doc.save('etiquetas_wms_' + (isRack ? 'rack' : 'barral') + '.pdf');
+        doc.save('etiquetas_wms_' + (isRack ? 'rack_120x60mm' : 'barral_60x60mm') + '.pdf');
         showToast(codes.length + ' etiqueta(s) ' + (isRack ? 'rack 120x60mm' : 'barral 80x60mm') + ' generadas', 'success');
         return;
       }
