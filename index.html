@@ -152,8 +152,8 @@
   .map-cell.occupied{background:var(--blue-light);border-color:rgba(0,84,128,.35);color:var(--blue);}
   .map-cell.mixed{background:#e8f4fb;border-color:rgba(0,104,158,.4);color:var(--blue-mid);}
   .map-cell.near-exp{background:var(--orange-light);border-color:rgba(241,123,32,.4);color:var(--orange);}
-  .map-cell .cell-loc{font-weight:700;font-size:9px;text-align:center;}
-  .map-cell .cell-count{font-size:8px;opacity:.7;margin-top:2px;}
+  .map-cell .cell-loc{font-weight:700;font-size:11px;text-align:center;}
+  .map-cell .cell-count{font-size:10px;opacity:.7;margin-top:2px;}
   .map-legend{display:flex;gap:16px;padding:0 16px 12px;flex-wrap:wrap;}
   .legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);}
   .legend-dot{width:10px;height:10px;border-radius:2px;border:1px solid;}
@@ -412,7 +412,7 @@
               <div class="legend-item"><div class="legend-dot" style="background:#e8f4fb;border-color:rgba(0,104,158,.4);"></div>Múltiple</div>
               <div class="legend-item"><div class="legend-dot" style="background:var(--orange-light);border-color:rgba(241,123,32,.4);"></div>Próx. vencer</div>
             </div>
-            <div id="map-container" style="overflow:auto;max-height:calc(100vh - 280px);"></div>
+            <div id="map-container" style="overflow:auto;max-height:calc(100vh - 280px);padding-bottom:16px;"></div>
           </div>
         </div>
         <div>
@@ -1331,7 +1331,7 @@ function renderProductos(){
 // MAPA DEL DEPÓSITO — canvas libre por depósito + pasillos
 // ============================================================
 var _mapEditMode = false;
-var CELL_W = 80, CELL_H = 56, CELL_GAP = 8;
+var CELL_W = 100, CELL_H = 70, CELL_GAP = 10;
 
 // Load/save helpers
 function loadMapData(zona) {
@@ -1364,8 +1364,8 @@ function renderMapa() {
     locs.forEach(function(l) {
       if (!positions[l.code]) {
         positions[l.code] = {
-          x: (autoIdx % 10) * (CELL_W + CELL_GAP) + 16,
-          y: Math.floor(autoIdx / 10) * (CELL_H + CELL_GAP) + 16
+          x: (autoIdx % 20) * (CELL_W + CELL_GAP) + 16,
+          y: Math.floor(autoIdx / 20) * (CELL_H + CELL_GAP) + 16
         };
         autoIdx++;
       } else {
@@ -1374,15 +1374,17 @@ function renderMapa() {
     });
 
     // Calculate canvas min height
-    var maxY = 16;
+    var maxY = 16, maxX = 16;
     locs.forEach(function(l){
       var p = positions[l.code];
-      if (p && (p.y + CELL_H + 16) > maxY) maxY = p.y + CELL_H + 16;
+      if (p) { if ((p.y + CELL_H + 16) > maxY) maxY = p.y + CELL_H + 16; if ((p.x + CELL_W + 16) > maxX) maxX = p.x + CELL_W + 16; }
     });
     aisles.forEach(function(a){
       if ((a.y + CELL_H + 16) > maxY) maxY = a.y + CELL_H + 16;
+      if ((a.x + CELL_W + 16) > maxX) maxX = a.x + CELL_W + 16;
     });
-    var canvasH = Math.max(maxY, 200);
+    var canvasW = Math.max(maxX || 0, 20*(CELL_W+CELL_GAP)+32);
+    var canvasH = Math.max(maxY, 10*(CELL_H+CELL_GAP)+32);
 
     // Build section
     var section = document.createElement('div');
@@ -1400,7 +1402,7 @@ function renderMapa() {
     var canvas = document.createElement('div');
     canvas.className = 'map-canvas';
     canvas.dataset.zona = zona;
-    canvas.style.cssText = 'position:relative;width:100%;min-height:' + canvasH + 'px;background:var(--surface2);border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;overflow:hidden;';
+    canvas.style.cssText = 'position:relative;min-width:' + canvasW + 'px;min-height:' + canvasH + 'px;background:var(--surface2);border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;overflow:visible;';
 
     // Grid dots (visible in edit mode)
     var gridDots = document.createElement('div');
@@ -1449,8 +1451,10 @@ function renderMapa() {
       if (!_mapEditMode) return;
       if (e.target !== canvas && e.target !== gridDots) return;
       var rect = canvas.getBoundingClientRect();
-      var x = Math.round((e.clientX - rect.left - 16) / (CELL_W + CELL_GAP)) * (CELL_W + CELL_GAP) + 16;
-      var y = Math.round((e.clientY - rect.top - 16) / (CELL_H + CELL_GAP)) * (CELL_H + CELL_GAP) + 16;
+      var scrollLeft = canvas.parentElement.scrollLeft || 0;
+      var scrollTop = canvas.parentElement.scrollTop || 0;
+      var x = Math.round((e.clientX - rect.left + scrollLeft - 16) / (CELL_W + CELL_GAP)) * (CELL_W + CELL_GAP) + 16;
+      var y = Math.round((e.clientY - rect.top + scrollTop - 16) / (CELL_H + CELL_GAP)) * (CELL_H + CELL_GAP) + 16;
       x = Math.max(16, x); y = Math.max(16, y);
       addAisle(zona, x, y);
     });
@@ -1537,8 +1541,10 @@ function makeDragHandler(cell) {
       nx = Math.max(16, nx); ny = Math.max(16, ny);
       cell.style.left = nx + 'px'; cell.style.top = ny + 'px';
       // Expand canvas if needed
-      var needed = ny + CELL_H + 16;
-      if (needed > canvas.offsetHeight) canvas.style.minHeight = needed + 'px';
+      var neededH = ny + CELL_H + 16;
+      var neededW = nx + CELL_W + 16;
+      if (neededH > parseInt(canvas.style.minHeight||0)) canvas.style.minHeight = neededH + 'px';
+      if (neededW > parseInt(canvas.style.minWidth||0)) canvas.style.minWidth = neededW + 'px';
     }
     function onUp() {
       cell.style.zIndex=''; cell.style.opacity=''; cell.style.cursor='grab';
