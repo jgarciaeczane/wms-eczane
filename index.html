@@ -1152,40 +1152,58 @@ function printQRs(labelType){
         doc.text(code, 6, logoY + logoH + 3 + codeH, {align:'left', charSpace:0.3});
 
       } else {
-        // ── BARRAL 60x60mm: arrow left | QR top | code bottom ──
-        // jsPDF: Y=0 is TOP, grows downward
-        var barrArrowZoneW = 12;
-        var qrZoneX = borderInset + barrArrowZoneW;
-        var qrZoneW2 = PAGE_W - borderInset - barrArrowZoneW - borderInset; // 44mm
-        doc.setFont('courier','bold'); doc.setFontSize(14);
-        var codeH2 = 14 * 0.3528;
-        var gap = 1.5;
-        var qrBgY = borderInset + 2;
-        var qrSize2 = Math.min(qrZoneW2 - 2, PAGE_H - qrBgY - gap - (codeH2 + 2) - borderInset);
-        var qrBgX = qrZoneX + (qrZoneW2 - qrSize2) / 2;
-        doc.setFillColor(244,248,251);
-        doc.roundedRect(qrBgX, qrBgY, qrSize2, qrSize2, cornerRadius*0.5, cornerRadius*0.5, 'F');
-        doc.addImage(qrDataUrl, 'PNG', qrBgX, qrBgY, qrSize2, qrSize2);
-        var codeY = qrBgY + qrSize2 + gap + codeH2;
-        doc.setFontSize(14);
-        doc.setTextColor(0,84,128);
-        doc.text(code, qrZoneX + qrZoneW2/2, codeY, {align:'center', charSpace:0.3});
-        // Arrow centered in its zone
-        var barrArrowCX = borderInset + barrArrowZoneW/2;
-        var barrAW = 9, barrAH = PAGE_H - 8, barrHH = barrAH*0.4, barrSW = barrAW*0.4;
-        var barrTipY = borderInset + (dir==='up' ? 0 : barrAH);
-        var barrBaseY = borderInset + (dir==='up' ? barrAH : 0);
-        var barrHBaseY = barrTipY + (dir==='up' ? barrHH : -barrHH);
-        doc.setFillColor(0,84,128);
-        var barrPts = [
-          [barrArrowCX, barrTipY],
-          [barrArrowCX+barrAW/2, barrHBaseY],[barrArrowCX+barrSW/2, barrHBaseY],
-          [barrArrowCX+barrSW/2, barrBaseY],[barrArrowCX-barrSW/2, barrBaseY],
-          [barrArrowCX-barrSW/2, barrHBaseY],[barrArrowCX-barrAW/2, barrHBaseY]
+        // ── BARRAL 60x60mm: arrow left | QR top-right | code bottom ──
+        // Layout matches validated design: narrow arrow zone left, QR fills right, code below QR
+        var bArrW = 12;                              // arrow zone width mm
+        var bQrX  = borderInset + bArrW;             // QR zone starts here (mm from left)
+        var bQrW  = PAGE_W - borderInset - bArrW - borderInset;  // QR zone width (~44mm)
+        var bFsz  = 14;                              // code font pt
+        var bCodeH = bFsz * 0.3528;                 // code text height mm
+        var bGap   = 1.5;                            // gap between QR bg and code mm
+        var bQrBgY = borderInset + 2;               // QR bg top (4mm from page top)
+        // QR size: constrained by zone width AND by height leaving room for code
+        var bQrSz = Math.min(
+          bQrW - 2,
+          PAGE_H - bQrBgY - bGap - bCodeH - 2 - borderInset
+        );
+        var bQrBgX = bQrX + (bQrW - bQrSz) / 2;   // center QR horizontally in zone
+
+        // Draw QR background + image
+        doc.setFillColor(244, 248, 251);
+        doc.roundedRect(bQrBgX, bQrBgY, bQrSz, bQrSz, cornerRadius*0.5, cornerRadius*0.5, 'F');
+        doc.addImage(qrDataUrl, 'PNG', bQrBgX, bQrBgY, bQrSz, bQrSz);
+
+        // Draw code below QR
+        doc.setFont('courier','bold');
+        doc.setFontSize(bFsz);
+        doc.setTextColor(0, 84, 128);
+        var bCodeY = bQrBgY + bQrSz + bGap + bCodeH;
+        doc.text(code, bQrX + bQrW/2, bCodeY, {align:'center', charSpace:0.3});
+
+        // Draw arrow in left zone
+        var bArrCX = borderInset + bArrW/2;
+        var bAW = 9, bAH = PAGE_H - 8;
+        var bHH = bAH * 0.40, bSW = bAW * 0.4;
+        var bTipY, bBaseY, bHBaseY;
+        if(dir === 'none'){
+          // no arrow
+        } else {
+          if(dir === 'down'){
+            bTipY = borderInset + bAH; bBaseY = borderInset; bHBaseY = bTipY - bHH;
+          } else {
+            bTipY = borderInset; bBaseY = borderInset + bAH; bHBaseY = bTipY + bHH;
+          }
+          doc.setFillColor(0, 84, 128);
+        var bPts = [
+          [bArrCX, bTipY],
+          [bArrCX+bAW/2, bHBaseY], [bArrCX+bSW/2, bHBaseY],
+          [bArrCX+bSW/2, bBaseY],  [bArrCX-bSW/2, bBaseY],
+          [bArrCX-bSW/2, bHBaseY], [bArrCX-bAW/2, bHBaseY]
         ];
-        var barrDeltas=[];
-        for(var i=1;i<barrPts.length;i++) barrDeltas.push([barrPts[i][0]-barrPts[i-1][0],barrPts[i][1]-barrPts[i-1][1]]);
-        doc.lines(barrDeltas, barrPts[0][0], barrPts[0][1], [1,1], 'F', true);
+        var bDlts = [];
+        for(var i=1;i<bPts.length;i++) bDlts.push([bPts[i][0]-bPts[i-1][0], bPts[i][1]-bPts[i-1][1]]);
+          doc.lines(bDlts, bPts[0][0], bPts[0][1], [1,1], 'F', true);
+        }
       }
 
       // 6) Arrow — rack only (barral arrow already drawn above)
