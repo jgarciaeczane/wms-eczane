@@ -475,7 +475,7 @@
           <div style="display:flex;gap:8px;">
             <button class="btn btn-cyan btn-sm" onclick="selectAllQR()">Seleccionar todo</button>
             <button class="btn btn-primary btn-sm" onclick="printQRs('rack')" title="60x120mm — con logo, código y flecha">🖨 Etiqueta Rack</button>
-            <button class="btn btn-primary btn-sm" onclick="printQRs('barral')" title="60x80mm — QR grande, código abajo, flecha">🖨 Etiqueta Barral</button>
+            <button class="btn btn-primary btn-sm" onclick="printQRs('barral')" title="60x60mm — flecha + QR + código">🖨 Etiqueta Barral</button>
           </div>
         </div>
         <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex-shrink:0;">
@@ -1160,13 +1160,13 @@ function printQRs(labelType){
         var bFsz  = 14;                              // code font pt
         var bCodeH = bFsz * 0.3528;                 // code text height mm
         var bGap   = 1.5;                            // gap between QR bg and code mm
-        var bQrBgY = borderInset + 2;               // QR bg top (4mm from page top)
+        var bQrBgY = borderInset + 3;               // QR bg top (5mm from page top, inset from border)
         // QR size: constrained by zone width AND by height leaving room for code
         var bQrSz = Math.min(
           bQrW - 2,
           PAGE_H - bQrBgY - bGap - bCodeH - 2 - borderInset
         );
-        var bQrBgX = bQrX + (bQrW - bQrSz) / 2;   // center QR horizontally in zone
+        var bQrBgX = bQrX + (bQrW - bQrSz) / 2;   // center QR horizontally in zone (auto-insets from right border)
 
         // Draw QR background + image
         doc.setFillColor(244, 248, 251);
@@ -1182,16 +1182,16 @@ function printQRs(labelType){
 
         // Draw arrow in left zone
         var bArrCX = borderInset + bArrW/2;
-        var bAW = 9, bAH = PAGE_H - 8;
+        var bAW = 9, bAH = PAGE_H - 12; // 6mm margin top and bottom
         var bHH = bAH * 0.40, bSW = bAW * 0.4;
         var bTipY, bBaseY, bHBaseY;
         if(dir === 'none'){
           // no arrow
         } else {
           if(dir === 'down'){
-            bTipY = borderInset + bAH; bBaseY = borderInset; bHBaseY = bTipY - bHH;
+            bTipY = 6 + bAH; bBaseY = 6; bHBaseY = bTipY - bHH;
           } else {
-            bTipY = borderInset; bBaseY = borderInset + bAH; bHBaseY = bTipY + bHH;
+            bTipY = 6; bBaseY = 6 + bAH; bHBaseY = bTipY + bHH;
           }
           doc.setFillColor(0, 84, 128);
         var bPts = [
