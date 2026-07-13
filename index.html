@@ -1336,8 +1336,8 @@ var CELL_W = 100, CELL_H = 70, CELL_GAP = 10;
 
 // Load/save helpers
 function loadMapData(zona) {
-  try { return JSON.parse(localStorage.getItem('wms_map_' + zona) || 'null') || {positions:{}, aisles:[]}; }
-  catch(e) { return {positions:{}, aisles:[]}; }
+  try { var d=JSON.parse(localStorage.getItem('wms_map_'+zona)||'null')||{positions:{},aisles:{}}; if(Array.isArray(d.aisles)){var t={};t[zona]=d.aisles;d.aisles=t;} return d; }
+  catch(e) { return {positions:{},aisles:{}}; }
 }
 function saveMapData(zona, data) {
   localStorage.setItem('wms_map_' + zona, JSON.stringify(data));
@@ -1376,9 +1376,7 @@ function renderMapa() {
     var locs = state.ubicaciones.filter(function(u){ return memberZonas.indexOf(u.zona) !== -1; });
     var data = loadMapData(zona);
     var positions = data.positions || {};
-    var aisles = data.aisles || {};  // now keyed by zone: {MP2:[], 'MP2-PSI':[], 'MP2-REF':[]}
-    // Back-compat: if aisles is an array (old format), move it under zona key
-    if(Array.isArray(aisles)){ var tmp={}; tmp[zona]=aisles; aisles=tmp; data.aisles=aisles; }
+    var aisles = data.aisles || {};  // keyed by zone: {MP2:[], 'MP2-PSI':[], 'MP2-REF':[]}
 
     // Auto-layout default positions for locs without saved position
     var autoIdx = 0;
@@ -1400,9 +1398,11 @@ function renderMapa() {
       var p = positions[l.code];
       if (p) { if ((p.y + CELL_H + 16) > maxY) maxY = p.y + CELL_H + 16; if ((p.x + CELL_W + 16) > maxX) maxX = p.x + CELL_W + 16; }
     });
-    aisles.forEach(function(a){
-      if ((a.y + CELL_H + 16) > maxY) maxY = a.y + CELL_H + 16;
-      if ((a.x + CELL_W + 16) > maxX) maxX = a.x + CELL_W + 16;
+    Object.keys(aisles).forEach(function(zk){
+      (aisles[zk]||[]).forEach(function(a){
+        if ((a.y + CELL_H + 16) > maxY) maxY = a.y + CELL_H + 16;
+        if ((a.x + CELL_W + 16) > maxX) maxX = a.x + CELL_W + 16;
+      });
     });
     var canvasW = Math.max(maxX || 0, 10*(CELL_W+CELL_GAP)+32);
     var canvasH = Math.max(maxY, 10*(CELL_H+CELL_GAP)+32);
