@@ -1354,11 +1354,31 @@ function renderMapa() {
   if (!zonas.length) { container.innerHTML='<div class="empty-state">Sin ubicaciones</div>'; return; }
 
   container.innerHTML = '';
-  zonas.forEach(function(zona) {
-    var locs = state.ubicaciones.filter(function(u){return u.zona===zona;});
+
+  // Group sub-zones under their parent depot
+  var SUBZONE_PARENT = {'MP2-PSI':'MP2','MP2-REF':'MP2'};
+  var SUBZONE_COLOR  = {
+    'MP2-PSI': {bg:'rgba(241,123,32,.08)', border:'rgba(241,123,32,.35)', label:'Psicotrópicos', text:'#c45e00'},
+    'MP2-REF': {bg:'rgba(0,104,158,.08)', border:'rgba(0,104,158,.35)', label:'Refrigerados',   text:'#00689e'}
+  };
+
+  // Build combined zone list: replace sub-zones with their parent (deduplicated)
+  var renderedZonas = [];
+  zonas.forEach(function(z){
+    var parent = SUBZONE_PARENT[z] || z;
+    if(renderedZonas.indexOf(parent) === -1) renderedZonas.push(parent);
+  });
+
+  renderedZonas.forEach(function(zona) {
+    // Collect all zones that belong to this canvas (zona itself + its sub-zones)
+    var memberZonas = [zona].concat(zonas.filter(function(z){ return SUBZONE_PARENT[z]===zona; }));
+    // Collect locs from all member zones (zona + sub-zones)
+    var locs = state.ubicaciones.filter(function(u){ return memberZonas.indexOf(u.zona) !== -1; });
     var data = loadMapData(zona);
     var positions = data.positions || {};
-    var aisles = data.aisles || [];
+    var aisles = data.aisles || {};  // now keyed by zone: {MP2:[], 'MP2-PSI':[], 'MP2-REF':[]}
+    // Back-compat: if aisles is an array (old format), move it under zona key
+    if(Array.isArray(aisles)){ var tmp={}; tmp[zona]=aisles; aisles=tmp; data.aisles=aisles; }
 
     // Auto-layout default positions for locs without saved position
     var autoIdx = 0;
@@ -1396,7 +1416,11 @@ function renderMapa() {
     // Header
     var header = document.createElement('div');
     header.style.cssText = 'padding:6px 16px;font-size:11px;font-weight:700;color:var(--blue);letter-spacing:.1em;background:var(--blue-light);border-radius:6px 6px 0 0;border:1px solid rgba(0,84,128,.2);display:flex;align-items:center;gap:8px;';
-    header.innerHTML = '<span>DEPÓSITO ' + zona + '</span><span style="font-weight:400;color:var(--text2);">' + locs.length + ' ubicaciones</span>';
+    var subLabels = memberZonas.filter(function(z){return z!==zona;}).map(function(z){
+      var sc = SUBZONE_COLOR[z];
+      return '<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:'+sc.bg+';color:'+sc.text+';border:1px solid '+sc.border+';">'+sc.label+'</span>';
+    }).join('');
+    header.innerHTML = '<span>DEPÓSITO ' + zona + '</span>' + subLabels + '<span style="font-weight:400;color:var(--text2);">' + locs.length + ' ubicaciones</span>';
     section.appendChild(header);
 
     // Canvas
@@ -1414,18 +1438,19 @@ function renderMapa() {
     gridDots.style.backgroundPosition = '16px 16px';
     canvas.appendChild(gridDots);
 
-    // Aisle cells
-    aisles.forEach(function(a, idx) {
-      var cell = document.createElement('div');
-      cell.className = 'map-cell map-aisle';
-      cell.dataset.aisleIdx = idx;
-      cell.dataset.zona = zona;
-      cell.style.cssText = 'position:absolute;left:'+a.x+'px;top:'+a.y+'px;width:'+CELL_W+'px;height:'+CELL_H+'px;background:rgba(0,0,0,.04);border:1.5px dashed rgba(0,0,0,.12);border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text2);';
-      cell.textContent = 'Pasillo';
-      cell.onclick = function(e) {
-        if (_mapEditMode) { removeAisle(zona, idx); }
-      };
-      canvas.appendChild(cell);
+    // Aisle cells (per zone key)
+    Object.keys(aisles).forEach(function(zKey){
+      (aisles[zKey]||[]).forEach(function(a, idx) {
+        var cell = document.createElement('div');
+        cell.className = 'map-cell map-aisle';
+        cell.dataset.aisleIdx = idx;
+        cell.dataset.zona = zKey;
+        cell.dataset.parentZona = zona;
+        cell.style.cssText = 'position:absolute;left:'+a.x+'px;top:'+a.y+'px;width:'+CELL_W+'px;height:'+CELL_H+'px;background:rgba(0,0,0,.04);border:1.5px dashed rgba(0,0,0,.12);border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text2);';
+        cell.textContent = 'Pasillo';
+        cell.onclick = (function(zk,i){ return function(e){ if(_mapEditMode) removeAisle(zk,i,zona); }; })(zKey,idx);
+        canvas.appendChild(cell);
+      });
     });
 
     // Location cells
@@ -1437,11 +1462,14 @@ function renderMapa() {
       if (nExp) cls='near-exp';
       var pos = positions[l.code];
 
+      var sc = SUBZONE_COLOR[l.zona];
+      var subStyle = sc ? ';outline:2px solid '+sc.border+';outline-offset:-2px;' : '';
       var cell = document.createElement('div');
       cell.className = 'map-cell ' + cls;
       cell.dataset.code = l.code;
-      cell.dataset.zona = zona;
-      cell.style.cssText = 'position:absolute;left:'+pos.x+'px;top:'+pos.y+'px;width:'+CELL_W+'px;height:'+CELL_H+'px;cursor:pointer;';
+      cell.dataset.zona = l.zona;
+      cell.dataset.parentZona = zona;
+      cell.style.cssText = 'position:absolute;left:'+pos.x+'px;top:'+pos.y+'px;width:'+CELL_W+'px;height:'+CELL_H+'px;cursor:pointer'+subStyle+';';
       cell.innerHTML = '<span class="cell-loc">'+l.code+'</span><span class="cell-count">'+(it.length?it.length+'u':'·')+'</span>';
       cell.onclick = function(e) { handleCellClick(cell, e); };
       canvas.appendChild(cell);
@@ -1457,7 +1485,7 @@ function renderMapa() {
       var x = Math.round((e.clientX - rect.left + scrollLeft - 16) / (CELL_W + CELL_GAP)) * (CELL_W + CELL_GAP) + 16;
       var y = Math.round((e.clientY - rect.top + scrollTop - 16) / (CELL_H + CELL_GAP)) * (CELL_H + CELL_GAP) + 16;
       x = Math.max(16, x); y = Math.max(16, y);
-      addAisle(zona, x, y);
+      addAisle(zona, x, y, zona);
     });
 
     section.appendChild(canvas);
@@ -1604,20 +1632,26 @@ function handleCellClick(cell, e) {
   showLocDetail(cell.dataset.code);
 }
 
-function addAisle(zona, x, y) {
-  var data = loadMapData(zona);
-  data.aisles = data.aisles || [];
-  data.aisles.push({x:x, y:y});
-  saveMapData(zona, data);
+function addAisle(zona, x, y, parentZona) {
+  var saveZona = parentZona || zona;
+  var data = loadMapData(saveZona);
+  if(Array.isArray(data.aisles)){ var tmp={}; tmp[saveZona]=data.aisles; data.aisles=tmp; }
+  data.aisles = data.aisles || {};
+  data.aisles[saveZona] = data.aisles[saveZona] || [];
+  data.aisles[saveZona].push({x:x, y:y});
+  saveMapData(saveZona, data);
   renderMapa();
   activateEditMode();
 }
 
-function removeAisle(zona, idx) {
-  var data = loadMapData(zona);
-  data.aisles = data.aisles || [];
-  data.aisles.splice(idx, 1);
-  saveMapData(zona, data);
+function removeAisle(zona, idx, parentZona) {
+  var saveZona = parentZona || zona;
+  var data = loadMapData(saveZona);
+  if(Array.isArray(data.aisles)){ var tmp={}; tmp[saveZona]=data.aisles; data.aisles=tmp; }
+  data.aisles = data.aisles || {};
+  data.aisles[zona] = data.aisles[zona] || [];
+  data.aisles[zona].splice(idx, 1);
+  saveMapData(saveZona, data);
   renderMapa();
   activateEditMode();
 }
