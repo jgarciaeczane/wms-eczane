@@ -1173,14 +1173,16 @@ function printQRs(labelType){
         doc.roundedRect(bQrBgX, bQrBgY, bQrSz, bQrSz, cornerRadius*0.5, cornerRadius*0.5, 'F');
         doc.addImage(qrDataUrl, 'PNG', bQrBgX, bQrBgY, bQrSz, bQrSz);
 
-        // Draw code below QR — auto-fit font size to available width
-        var bFszFit = fitCodeFontSize(code, bQrW - 2);
+        // Draw code below QR — use full page width for fitting
+        var bAvailW = PAGE_W - 2*borderInset - 2; // full usable width
+        var bFszFit = fitCodeFontSize(code, bAvailW);
         doc.setFont('courier','bold');
         doc.setFontSize(bFszFit);
         var bCodeHFit = bFszFit * 0.3528;
         doc.setTextColor(0, 84, 128);
         var bCodeY = bQrBgY + bQrSz + bGap + bCodeHFit;
-        doc.text(code, bQrX + bQrW/2, bCodeY, {align:'center', charSpace:0.3});
+        // Center across full page width
+        doc.text(code, PAGE_W/2, bCodeY, {align:'center', charSpace:0.3});
 
         // Draw arrow in left zone
         var bArrCX = borderInset + bArrW/2;
