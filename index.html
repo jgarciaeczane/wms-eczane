@@ -1157,19 +1157,29 @@ function printQRs(labelType){
         var qrZoneW2 = PAGE_W - borderInset - arrowZoneW - borderInset;
         doc.setFont('courier','bold'); doc.setFontSize(codeFontPt);
         var codeH2 = codeFontPt * 0.3528;
-        var qrSize2 = PAGE_H - 2*borderInset - 2 - codeH2 - 2;
-        var qrX2 = qrZoneX + (qrZoneW2 - qrSize2)/2;
-        var qrY2 = borderInset;
+        // QR bg square: inset bgZonePad from card border on all sides, leave room for code below
+        var qrBgPad = bgZonePad; // same margin as rack (3mm from card border)
+        var qrSize2 = PAGE_H - 2*borderInset - 2*qrBgPad - 2 - codeH2;
+        var qrBgX = qrZoneX + (qrZoneW2 - qrSize2) / 2;
+        var qrBgY = borderInset + qrBgPad;
         doc.setFillColor(244,248,251);
-        doc.roundedRect(qrX2-bgPad, qrY2, qrSize2+bgPad*2, qrSize2+bgPad*2, cornerRadius*0.5, cornerRadius*0.5, 'F');
-        doc.addImage(qrDataUrl, 'PNG', qrX2, qrY2, qrSize2, qrSize2);
+        doc.roundedRect(qrBgX, qrBgY, qrSize2, qrSize2, cornerRadius*0.5, cornerRadius*0.5, 'F');
+        doc.addImage(qrDataUrl, 'PNG', qrBgX, qrBgY, qrSize2, qrSize2);
         doc.setTextColor(0,84,128);
         doc.text(code, qrZoneX + qrZoneW2/2, PAGE_H - borderInset - 1, {align:'center', charSpace:0.3});
       }
 
       // 6) Arrow
       if(dir !== 'none'){
-        var arrowXCenter = borderInset + arrowZoneW/2;
+        // rack: arrow is between left zone (logo+code) and QR zone
+        // barral: arrow is on the left edge
+        var arrowXCenter;
+        if(isRack){
+          var rackLeftZoneW = PAGE_W - (PAGE_H - 2*borderInset - 2*bgZonePad) - arrowZoneW - bgZonePad;
+          arrowXCenter = rackLeftZoneW + arrowZoneW/2;
+        } else {
+          arrowXCenter = borderInset + arrowZoneW/2;
+        }
         var arrowW = 7, arrowMargin = 6;
         var arrowH = PAGE_H - 2*arrowMargin;
         var headH = arrowH * 0.40, shaftW = arrowW * 0.4;
