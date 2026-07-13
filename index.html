@@ -1146,7 +1146,7 @@ function printQRs(labelType){
         doc.setFont('courier','bold'); doc.setFontSize(fs);
         var codeH = fs * 0.3528;
         var blockH = logoH + 3 + codeH;
-        var logoY = (PAGE_H - blockH) / 2 + 12; // shift up 12mm
+        var logoY = (PAGE_H - blockH) / 2 - 10; // shift up 10mm (jsPDF: Y grows downward)
         doc.addImage('data:image/png;base64,'+ECZANE_LOGO_B64, 'PNG', 6, logoY, logoW, logoH);
         doc.setTextColor(0,84,128);
         doc.text(code, 6, logoY + logoH + 3 + codeH, {align:'left', charSpace:0.3});
