@@ -405,6 +405,12 @@
               <button id="map-edit-btn" class="btn btn-sm btn-primary" onclick="toggleMapEdit()" style="font-size:12px;">✎ Editar posiciones</button>
               <button class="btn btn-sm btn-ghost" onclick="resetMapPositions()" style="font-size:12px;">&#8635; Reiniciar layout</button>
               <button class="btn btn-sm btn-ghost" onclick="fixMapOverlaps()" style="font-size:12px;" title="Resuelve celdas superpuestas">⚡ Resolver superposiciones</button>
+              <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+                <span style="font-size:11px;color:var(--text2);">Imprimir mapa:</span>
+                <button class="btn btn-sm btn-ghost" onclick="printMapPDF('MP1')" style="font-size:12px;">🖨 MP1</button>
+                <button class="btn btn-sm btn-ghost" onclick="printMapPDF('MP2')" style="font-size:12px;">🖨 MP2</button>
+                <button class="btn btn-sm btn-ghost" onclick="printMapPDF('ME')" style="font-size:12px;">🖨 ME</button>
+              </div>
               <span id="map-edit-hint" style="font-size:11px;color:var(--text2);display:none;">Arrastrá celdas · Clic en vacío = pasillo · Clic en pasillo = eliminar</span>
             </div>
             <div class="map-legend">
@@ -1369,6 +1375,55 @@ function renderProductos(){
 }
 
 
+
+function printMapPDF(targetZona) {
+  showToast('Generando mapa ' + targetZona + '...', 'info');
+  var section = document.querySelector('.map-zona-section[data-zona="' + targetZona + '"]');
+  if (!section) { showToast('No hay mapa para ' + targetZona, 'error'); return; }
+  var canvas = section.querySelector('.map-canvas');
+  if (!canvas) { showToast('Canvas no encontrado', 'error'); return; }
+  var canvasW = canvas.scrollWidth;
+  var canvasH = canvas.scrollHeight;
+  var mmW = Math.max(297, canvasW * 0.264583);
+  var mmH = Math.max(210, canvasH * 0.264583);
+  var doc = new jspdf.jsPDF({unit:'mm', format:[mmW, mmH], orientation: mmW > mmH ? 'landscape' : 'portrait'});
+  doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(0,84,128);
+  doc.text('DEPOSITO ' + targetZona, 10, 12);
+  var offsetY = 20;
+  var cells = canvas.querySelectorAll('.map-cell:not(.map-aisle)');
+  cells.forEach(function(cell) {
+    var x=(parseInt(cell.style.left)||0)*0.264583;
+    var y=(parseInt(cell.style.top)||0)*0.264583+offsetY;
+    var w=(cell.offsetWidth||80)*0.264583;
+    var h=(cell.offsetHeight||56)*0.264583;
+    var code=cell.dataset.code||'';
+    var cls=cell.className;
+    if(cls.indexOf('occupied')>-1) doc.setFillColor(0,84,128);
+    else if(cls.indexOf('mixed')>-1) doc.setFillColor(100,149,180);
+    else if(cls.indexOf('near-exp')>-1) doc.setFillColor(230,100,50);
+    else doc.setFillColor(230,242,255);
+    doc.setDrawColor(0,84,128); doc.setLineWidth(0.3);
+    doc.roundedRect(x+1,y+1,w-2,h-2,1,1,'FD');
+    var tc=cls.indexOf('occupied')>-1?[255,255,255]:[0,84,128];
+    doc.setTextColor(tc[0],tc[1],tc[2]);
+    doc.setFont('helvetica','bold'); doc.setFontSize(5.5);
+    doc.text(code,x+w/2,y+h/2+1,{align:'center'});
+  });
+  var aisles=canvas.querySelectorAll('.map-aisle');
+  aisles.forEach(function(cell){
+    var x=(parseInt(cell.style.left)||0)*0.264583;
+    var y=(parseInt(cell.style.top)||0)*0.264583+offsetY;
+    var w=(cell.offsetWidth||80)*0.264583;
+    var h=(cell.offsetHeight||56)*0.264583;
+    doc.setFillColor(220,220,220); doc.setDrawColor(180,180,180); doc.setLineWidth(0.2);
+    doc.roundedRect(x+1,y+1,w-2,h-2,1,1,'FD');
+    doc.setTextColor(150,150,150); doc.setFontSize(5); doc.setFont('helvetica','normal');
+    doc.text('Pasillo',x+w/2,y+h/2+1,{align:'center'});
+  });
+  doc.save('mapa_'+targetZona+'.pdf');
+  showToast('Mapa '+targetZona+' descargado','success');
+}
+
 // ============================================================
 // MAPA DEL DEPÓSITO — canvas libre por depósito + pasillos
 // ============================================================
@@ -2088,4 +2143,4 @@ showPanel = function(id, btn) {
 };
 </script>
 </body>
-</html>
+  </html>
