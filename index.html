@@ -1384,8 +1384,8 @@ function printMapPDF(targetZona) {
   if (!canvas) { showToast('Canvas no encontrado', 'error'); return; }
   var canvasW = canvas.scrollWidth;
   var canvasH = canvas.scrollHeight;
-  var mmW = Math.max(297, canvasW * 0.264583);
-  var mmH = Math.max(210, canvasH * 0.264583);
+  var mmW = canvasW * 0.264583 + 20;
+  var mmH = canvasH * 0.264583 + 30; // extra margin for title + legend
   var doc = new jspdf.jsPDF({unit:'mm', format:[mmW, mmH], orientation: mmW > mmH ? 'landscape' : 'portrait'});
   doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(0,84,128);
   doc.text('DEPOSITO ' + targetZona, 10, 12);
