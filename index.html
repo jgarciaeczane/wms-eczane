@@ -767,7 +767,8 @@ function startCamera() {
         { video: { facingMode: {ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} } },
         video,
         function(result, err) {
-          if (result) {
+          if (result && !scanHandled) {
+            try { codeReader.reset(); } catch(e) {}
             processScan(result.getText());
           }
         }
@@ -871,7 +872,7 @@ function closeScanner(){
   }
   scanStream = null;
   scanTarget = null;
-  scanHandled = false;
+  // scanHandled stays true until openScanner resets it
   var video = document.getElementById('scanner-video');
   if(video && video.srcObject){
     try { video.srcObject.getTracks().forEach(function(t){t.stop();}); } catch(e){}
@@ -2134,7 +2135,7 @@ function opNuevo() {
 // Hook into processScan for operario mode
 var _origProcessScan = processScan;
 processScan = function(raw) {
-  if(scanTarget==='op-producto') { closeScanner(); opSetProducto(raw); return; }
+  if(scanTarget==='op-producto') { closeScanner(); setTimeout(function(){ opSetProducto(raw); }, 300); return; }
   if(scanTarget==='op-ubicacion') { closeScanner(); opSetUbicacion(raw); return; }
   _origProcessScan(raw);
 };
