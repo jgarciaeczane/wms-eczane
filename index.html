@@ -768,7 +768,6 @@ function startCamera() {
         video,
         function(result, err) {
           if (result && !scanHandled) {
-            try { codeReader.reset(); } catch(e) {}
             processScan(result.getText());
           }
         }
@@ -872,7 +871,7 @@ function closeScanner(){
   }
   scanStream = null;
   scanTarget = null;
-  // scanHandled stays true until openScanner resets it
+  scanHandled = false;
   var video = document.getElementById('scanner-video');
   if(video && video.srcObject){
     try { video.srcObject.getTracks().forEach(function(t){t.stop();}); } catch(e){}
@@ -989,8 +988,8 @@ function applyProduct(barcode){
   // Auto-advance to location scanner
   setTimeout(function(){
     closeScanner();
-    setTimeout(function(){ openScanner('ubicacion'); }, 400);
-  }, 800);
+    setTimeout(function(){ openScanner('ubicacion'); }, 1200);
+  }, 900);
 }
 
 function updateScanStatus(type, val){
@@ -2088,7 +2087,7 @@ function opSetProducto(barcode) {
   document.getElementById('op-btn-prod').style.display='none';
   document.getElementById('op-card-prod').style.borderColor='var(--blue)';
   opUnlockLoc(); opUpdateConfirm();
-  setTimeout(function(){ opScanLoc(); }, 600);
+  setTimeout(function(){ opScanLoc(); }, 1500);
 }
 
 function opSetUbicacion(code) {
@@ -2135,7 +2134,7 @@ function opNuevo() {
 // Hook into processScan for operario mode
 var _origProcessScan = processScan;
 processScan = function(raw) {
-  if(scanTarget==='op-producto') { closeScanner(); setTimeout(function(){ opSetProducto(raw); }, 300); return; }
+  if(scanTarget==='op-producto') { closeScanner(); opSetProducto(raw); return; }
   if(scanTarget==='op-ubicacion') { closeScanner(); opSetUbicacion(raw); return; }
   _origProcessScan(raw);
 };
