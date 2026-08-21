@@ -711,6 +711,20 @@ function testConnection(){
 function openScanner(target) {
   scanTarget = target;
   scanHandled = false;
+  // Force stop any existing camera stream before opening new scanner
+  if(scanStream) {
+    try { if(scanStream.reset) scanStream.reset(); } catch(e) {}
+    try {
+      if(scanStream.getTracks) scanStream.getTracks().forEach(function(t){t.stop();});
+    } catch(e) {}
+    scanStream = null;
+  }
+  if(scanInterval) { clearInterval(scanInterval); scanInterval = null; }
+  var vid = document.getElementById('scanner-video');
+  if(vid && vid.srcObject) {
+    try { vid.srcObject.getTracks().forEach(function(t){t.stop()}); } catch(e) {}
+    vid.srcObject = null;
+  }
   var titles = {producto:'Escanear código de barras del producto', ubicacion:'Escanear QR de ubicación (destino)', origen:'Escanear QR de ubicación (origen)'};
   document.getElementById('scanner-title').textContent = titles[target] || 'Escanear código';
   document.getElementById('scanner-result').style.display = 'none';
@@ -2087,7 +2101,7 @@ function opSetProducto(barcode) {
   document.getElementById('op-btn-prod').style.display='none';
   document.getElementById('op-card-prod').style.borderColor='var(--blue)';
   opUnlockLoc(); opUpdateConfirm();
-  setTimeout(function(){ opScanLoc(); }, 1500);
+  setTimeout(function(){ opScanLoc(); }, 2000);
 }
 
 function opSetUbicacion(code) {
