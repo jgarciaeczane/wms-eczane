@@ -980,7 +980,7 @@ function applyProduct(barcode){
     updateScanStatus('prod', barcode);
     showToast('Código leído: '+barcode+' (verificá el producto)','success');
   }
-  // Auto-advance to location scanner after reading product barcode
+  // Auto-advance to location scanner
   setTimeout(function(){
     closeScanner();
     setTimeout(function(){ openScanner('ubicacion'); }, 400);
