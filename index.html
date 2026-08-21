@@ -653,6 +653,7 @@ var isConnected = false;
 var selectedQRs = new Set();
 var qrArrowDirections = {}; // { 'MP1-01-C-02': 'up' | 'down' | 'none' }
 var scanTarget = null; // 'producto' | 'ubicacion' | 'origen'
+var scanHandled = false; // prevents ZXing double-fire
 var scanStream = null;
 var scanInterval = null;
 var manualBuffer = "";
@@ -709,6 +710,7 @@ function testConnection(){
 // ============================================================
 function openScanner(target) {
   scanTarget = target;
+  scanHandled = false;
   var titles = {producto:'Escanear código de barras del producto', ubicacion:'Escanear QR de ubicación (destino)', origen:'Escanear QR de ubicación (origen)'};
   document.getElementById('scanner-title').textContent = titles[target] || 'Escanear código';
   document.getElementById('scanner-result').style.display = 'none';
@@ -869,6 +871,7 @@ function closeScanner(){
   }
   scanStream = null;
   scanTarget = null;
+  scanHandled = false;
   var video = document.getElementById('scanner-video');
   if(video && video.srcObject){
     try { video.srcObject.getTracks().forEach(function(t){t.stop();}); } catch(e){}
@@ -891,6 +894,8 @@ function handleManualKey(e){
 function processScan(raw) {
   raw = raw.trim();
   if(!raw) return;
+  if(scanHandled) return; // ZXing fires callback multiple times
+  scanHandled = true;
 
   // Show result
   var resEl = document.getElementById('scanner-result');
