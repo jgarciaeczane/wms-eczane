@@ -428,7 +428,7 @@
             <div class="card-header">Agregar ubicación</div>
             <div style="padding:16px;">
               <div class="form-grid-2" style="gap:10px;">
-                <div class="form-group"><label>Depósito</label><select class="form-control" id="new-zona"><option>MP1</option><option>MP2</option><option>MP2-PSI</option><option>MP2-REF</option><option>ME</option><option>ME-PSI</option><option>CAP</option><option>PT1</option><option>PT2</option><option>PT3</option><option>SE1</option><option>SE2</option></select></div>
+                <div class="form-group"><label>Depósito</label><select class="form-control" id="new-zona"><option>MP1</option><option>MP2</option><option>MP1-PSI</option><option>MP2-REF</option><option>ME</option><option>ME-PSI</option><option>CAP</option><option>PT1</option><option>PT2</option><option>PT3</option><option>SE1</option><option>SE2</option></select></div>
                 <div class="form-group"><label>N° de Rack</label><input class="form-control" id="new-est" type="number" min="1" max="20" value="1"></div>
                 <div class="form-group"><label>Sección</label><select class="form-control" id="new-pos"><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option><option>F</option></select></div>
                 <div class="form-group"><label>Nivel</label><select class="form-control" id="new-niv"><option>01</option><option>02</option><option>03</option><option>04</option><option>05</option><option>06</option><option>07</option><option>08</option><option>09</option><option>10</option></select></div>
@@ -1314,7 +1314,7 @@ function poblarQRZonas(){
   var sel = document.getElementById('qr-filter-zona');
   if(!sel) return;
   var zonas = [...new Set(state.ubicaciones.map(function(u){return u.zona;}))].sort(function(a,b){
-    var order=['MP1','MP2','MP2-PSI','MP2-REF','ME','ME-PSI','CAP','PT1','PT2','PT3','SE1','SE2'];
+    var order=['MP1','MP2','MP1-PSI','MP2-REF','ME','ME-PSI','CAP','PT1','PT2','PT3','SE1','SE2'];
     return order.indexOf(a)-order.indexOf(b);
   });
   sel.innerHTML = '<option value="">Todos los depósitos</option>' + zonas.map(function(z){return'<option value="'+z+'">'+z+'</option>';}).join('');
@@ -1483,7 +1483,7 @@ function saveMapData(zona, data) {
 
 function renderMapa() {
   var container = document.getElementById('map-container');
-  var depOrder = ['MP1','MP2','MP2-PSI','MP2-REF','ME','ME-PSI','CAP','PT1','PT2','PT3','SE1','SE2'];
+  var depOrder = ['MP1','MP2','MP1-PSI','MP2-REF','ME','ME-PSI','CAP','PT1','PT2','PT3','SE1','SE2'];
   var zonas = [...new Set(state.ubicaciones.map(function(u){return u.zona;}))]
     .sort(function(a,b){return depOrder.indexOf(a)-depOrder.indexOf(b);});
   var sm = {};
@@ -1494,9 +1494,9 @@ function renderMapa() {
   container.innerHTML = '';
 
   // Group sub-zones under their parent depot
-  var SUBZONE_PARENT = {'MP2-PSI':'MP2','MP2-REF':'MP2','ME-PSI':'ME'};
+  var SUBZONE_PARENT = {'MP1-PSI':'MP2','MP2-REF':'MP2','ME-PSI':'ME'};
   var SUBZONE_COLOR  = {
-    'MP2-PSI': {bg:'rgba(241,123,32,.08)', border:'rgba(241,123,32,.35)', label:'Psicotrópicos', text:'#c45e00'},
+    'MP1-PSI': {bg:'rgba(241,123,32,.08)', border:'rgba(241,123,32,.35)', label:'Psicotrópicos', text:'#c45e00'},
     'MP2-REF': {bg:'rgba(0,104,158,.08)', border:'rgba(0,104,158,.35)', label:'Refrigerados',   text:'#00689e'},
     'ME-PSI':  {bg:'rgba(241,123,32,.08)', border:'rgba(241,123,32,.35)', label:'Psicotrópicos', text:'#c45e00'}
   };
@@ -1515,7 +1515,7 @@ function renderMapa() {
     var locs = state.ubicaciones.filter(function(u){ return memberZonas.indexOf(u.zona) !== -1; });
     var data = loadMapData(zona);
     var positions = data.positions || {};
-    var aisles = data.aisles || {};  // keyed by zone: {MP2:[], 'MP2-PSI':[], 'MP2-REF':[]}
+    var aisles = data.aisles || {};  // keyed by zone: {MP2:[], 'MP1-PSI':[], 'MP2-REF':[]}
 
     // Auto-layout default positions for locs without saved position
     var autoIdx = 0;
@@ -1851,7 +1851,7 @@ function saveAllMapPositions() {
 }
 
 function resetMapPositions() {
-  var depOrder = ['MP1','MP2','MP2-PSI','MP2-REF','ME','ME-PSI','CAP','PT1','PT2','PT3','SE1','SE2'];
+  var depOrder = ['MP1','MP2','MP1-PSI','MP2-REF','ME','ME-PSI','CAP','PT1','PT2','PT3','SE1','SE2'];
   var zonas = [...new Set(state.ubicaciones.map(function(u){return u.zona;}))];
   zonas.forEach(function(z){ localStorage.removeItem('wms_map_' + z); });
   renderMapa();
