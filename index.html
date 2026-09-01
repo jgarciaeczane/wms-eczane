@@ -886,6 +886,32 @@ function closeScanner(){
 }
 
 // ---- USB / Manual input ----
+// Global USB scanner interceptor — works even when manual field isn't focused
+var _usbBuffer = '';
+var _usbTimer = null;
+document.addEventListener('keydown', function(e) {
+  if (!scanTarget) return;
+  var modal = document.getElementById('modal-scanner');
+  if (!modal || !modal.classList.contains('open')) return;
+  var manualInput = document.getElementById('scanner-manual');
+  if (document.activeElement === manualInput) return;
+  if (e.key === 'Enter') {
+    if (_usbBuffer.length > 2) {
+      var code = _usbBuffer;
+      _usbBuffer = '';
+      if (_usbTimer) { clearTimeout(_usbTimer); _usbTimer = null; }
+      e.preventDefault();
+      processScan(code);
+    }
+    _usbBuffer = '';
+  } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+    _usbBuffer += e.key;
+    if (_usbTimer) clearTimeout(_usbTimer);
+    _usbTimer = setTimeout(function() { _usbBuffer = ''; }, 200);
+    e.preventDefault();
+  }
+});
+
 // Lectors act as keyboard — they type fast and end with Enter
 function handleManualKey(e){
   var input = document.getElementById('scanner-manual');
