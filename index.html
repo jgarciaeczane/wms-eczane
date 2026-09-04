@@ -1982,14 +1982,56 @@ function limpiarMov(){
   document.getElementById('scan-loc-val').style.color='var(--text2)';
 }
 
+var _srStockId = null;
+
 function salidaRapida(stockId){
-  var item=state.stock.find(function(s){return s.id===stockId;});if(!item)return;
-  var qty=parseFloat(prompt('Cantidad a dar salida de "'+getProdNom(item.prodId)+'" (max '+item.qty+' '+item.unit+'):'))||0;
-  if(!qty||qty<=0)return;
-  if(qty>parseFloat(item.qty)){showToast('Cantidad supera el stock','error');return;}
+  var item = state.stock.find(function(s){ return s.id === stockId; });
+  if(!item) return;
+  _srStockId = stockId;
+  var nom = getProdNom(item.prodId);
+  document.getElementById('sr-producto').textContent = nom + (item.lote ? '  ·  Lote: ' + item.lote : '');
+  document.getElementById('sr-ubicacion').textContent = '📍 ' + item.ubicacion;
+  document.getElementById('sr-unit').textContent = item.unit;
+  document.getElementById('sr-stock-info').textContent = 'Stock disponible: ' + parseFloat(item.qty).toLocaleString('es-AR') + ' ' + item.unit;
+  document.getElementById('sr-qty').value = '';
+  document.getElementById('sr-error').style.display = 'none';
+  document.getElementById('sr-confirm').disabled = false;
+  var modal = document.getElementById('modal-salida-rapida');
+  modal.style.display = 'flex';
+  setTimeout(function(){ document.getElementById('sr-qty').focus(); }, 100);
+}
+
+function srValidate(){
+  var item = state.stock.find(function(s){ return s.id === _srStockId; });
+  var qty = parseFloat(document.getElementById('sr-qty').value) || 0;
+  var err = document.getElementById('sr-error');
+  var btn = document.getElementById('sr-confirm');
+  if(qty <= 0){
+    err.textContent = 'Ingresá una cantidad mayor a 0';
+    err.style.display = 'block'; btn.disabled = true;
+  } else if(item && qty > parseFloat(item.qty)){
+    err.textContent = 'La cantidad supera el stock disponible (' + parseFloat(item.qty).toLocaleString('es-AR') + ' ' + item.unit + ')';
+    err.style.display = 'block'; btn.disabled = true;
+  } else {
+    err.style.display = 'none'; btn.disabled = false;
+  }
+}
+
+function closeSalidaRapida(){
+  document.getElementById('modal-salida-rapida').style.display = 'none';
+  _srStockId = null;
+}
+
+function confirmarSalidaRapida(){
+  var item = state.stock.find(function(s){ return s.id === _srStockId; });
+  if(!item) return;
+  var qty = parseFloat(document.getElementById('sr-qty').value) || 0;
+  if(!qty || qty <= 0 || qty > parseFloat(item.qty)) return;
+  var btn = document.getElementById('sr-confirm');
+  btn.disabled = true; btn.textContent = 'Guardando...';
   apiCall('addMovimiento',{data:{id:'M'+Date.now(),tipo:'salida',prodId:item.prodId,prod:getProdNom(item.prodId),lote:item.lote,cat:item.cat,qty,unit:item.unit,venc:item.venc,origen:item.ubicacion,destino:'—',obs:'Salida rápida',stockId:item.id}})
-    .then(function(){showToast('Salida registrada ✓','success');loadFromSheets();})
-    .catch(function(err){showToast('Error: '+err.message,'error');});
+    .then(function(){ closeSalidaRapida(); showToast('Salida registrada ✓','success'); loadFromSheets(); })
+    .catch(function(err){ showToast('Error: '+err.message,'error'); btn.disabled=false; btn.textContent='Confirmar salida'; });
 }
 
 function guardarProducto(){
@@ -2185,5 +2227,25 @@ showPanel = function(id, btn) {
   }
 };
 </script>
+
+<!-- Modal Salida Rápida -->
+<div id="modal-salida-rapida" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;min-width:340px;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.18);">
+    <div style="font-weight:700;font-size:16px;color:var(--blue);margin-bottom:4px;">⬆ Salida rápida</div>
+    <div id="sr-producto" style="font-size:13px;color:var(--text2);margin-bottom:4px;"></div>
+    <div id="sr-ubicacion" style="font-size:12px;color:var(--text2);margin-bottom:16px;"></div>
+    <label style="font-size:12px;font-weight:600;color:var(--text2);">CANTIDAD</label>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+      <input id="sr-qty" type="number" min="0.001" step="any" class="form-control" style="width:120px;font-size:18px;font-weight:700;text-align:center;" oninput="srValidate()">
+      <span id="sr-unit" style="font-size:14px;color:var(--text2);"></span>
+    </div>
+    <div id="sr-error" style="color:var(--danger);font-size:12px;margin-top:6px;display:none;"></div>
+    <div id="sr-stock-info" style="font-size:12px;color:var(--text2);margin-top:4px;"></div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="btn btn-ghost" onclick="closeSalidaRapida()" style="flex:1;">Cancelar</button>
+      <button id="sr-confirm" class="btn btn-danger" onclick="confirmarSalidaRapida()" style="flex:1;">Confirmar salida</button>
+    </div>
+  </div>
+</div>
 </body>
   </html>
